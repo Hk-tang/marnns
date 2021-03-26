@@ -6,6 +6,7 @@ from seq2seq.preprocess import prepare_data
 from seq2seq.encoderRNN import EncoderRNN
 from seq2seq.attnDecoderRNN import AttnDecoderRNN
 from seq2seq.training import train_iters
+from seq2seq.evaluate import evaluate, evaluateRandomly
 
 # run from root dir
 # e.g., python3 seq2seq/main.py --data data/dataset_len100.tsv --length 100
@@ -24,3 +25,4 @@ if __name__ == "__main__":
 
     # train_iters(encoder1, attn_decoder1, 45274, print_every=5000)
     train_iters(input_lang, output_lang, pairs, encoder1, attn_decoder1, 45274, max_length, device, teacher_forcing_ratio=0.5, print_every=5000)
+    #evaluateRandomly(encoder1, attn_decoder1)
