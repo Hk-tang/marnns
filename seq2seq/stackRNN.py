@@ -13,22 +13,21 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 ## Stack-Augmented RNN with a Softmax Decision Gate
 class SRNN_Softmax (nn.Module):
-    def __init__(self, hidden_dim, output_size, vocab_size, n_layers=1, memory_size=104, memory_dim = 5):
+    def __init__(self, hidden_size, output_size, vocab_size, n_layers=1, memory_size=104, memory_dim = 5):
         super(SRNN_Softmax, self).__init__()
         self.vocab_size = vocab_size
         self.output_size = output_size
         self.n_layers = n_layers
-        self.hidden_dim = hidden_dim
-        
+        self.hidden_size = hidden_size
         self.memory_size = memory_size
         self.memory_dim = memory_dim
         
-        self.rnn = nn.RNN(self.vocab_size, self.hidden_dim, self.n_layers) # similar to GRU in encoderRNN
+        self.rnn = nn.RNN(self.vocab_size, self.hidden_size, self.n_layers) # similar to GRU in encoderRNN
 
-        self.W_y = nn.Linear(self.hidden_dim, output_size)
-        self.W_n = nn.Linear(self.hidden_dim, self.memory_dim)
-        self.W_a = nn.Linear(self.hidden_dim, 2)
-        self.W_sh = nn.Linear (self.memory_dim, self.hidden_dim)
+        self.W_y = nn.Linear(self.hidden_size, output_size)
+        self.W_n = nn.Linear(self.hidden_size, self.memory_dim)
+        self.W_a = nn.Linear(self.hidden_size, 2)
+        self.W_sh = nn.Linear (self.memory_dim, self.hidden_size)
         
         # Actions -- push : 0 and pop: 1
         self.softmax = nn.Softmax(dim=2) 
@@ -36,8 +35,13 @@ class SRNN_Softmax (nn.Module):
     
 
     def initHidden (self): # named changed from original code
-        return torch.zeros (self.n_layers, 1, self.hidden_dim).to(device)
+        return torch.zeros (self.n_layers, 1, self.hidden_size).to(device)
     
+
+    def initStack(self): #function added
+        return torch.zeros (self.memory_size, self.memory_dim).to(device)
+
+
 
     def forward(self, input, hidden0, stack, temperature=1.):
         hidden_bar = self.W_sh (stack[0]).view(1, 1, -1) + hidden0

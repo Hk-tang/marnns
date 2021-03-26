@@ -61,7 +61,7 @@ def indexes_from_sentence(lang, sentence):
 
 def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer, decoder_optimizer, criterion, max_length, device, teacher_forcing_ratio):
     encoder_hidden = encoder.initHidden()
-
+    encoder_stack = encoder.initStack()
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
