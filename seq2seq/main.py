@@ -7,7 +7,8 @@ from seq2seq.encoderRNN import EncoderRNN
 from seq2seq.attnDecoderRNN import AttnDecoderRNN
 from seq2seq.training import train_iters
 
-
+# run from root dir
+# e.g., python3 seq2seq/main.py --data data/dataset_len100.tsv --length 100
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Seq2seq")
     parser.add_argument("--data", "-d", help="Path to datafile")
