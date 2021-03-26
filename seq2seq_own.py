@@ -44,7 +44,7 @@ class Lang:
 def readLangs(lang1, lang2, reverse=False):
     print("Reading lines...")
     pairs = []
-    with open("dataset.tsv", encoding='utf-8') as tsv:
+    with open("data/dataset.tsv", encoding='utf-8') as tsv:
         reader = csv.reader(tsv, delimiter="\t")
         for line in reader:
             pairs.append([line[0], line[1]])

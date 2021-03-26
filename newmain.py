@@ -141,7 +141,7 @@ def main():
 
     inputs = []
     outputs = []
-    with open("dataset.tsv", newline="") as file:
+    with open("data/dataset.tsv", newline="") as file:
         reader = csv.reader(file, delimiter="\t")
         for line in reader:
             inputs.append(line[0])
