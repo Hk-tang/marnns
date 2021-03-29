@@ -8,6 +8,7 @@ import torch
 import torch.nn as nn
 from torch import optim
 import torch.nn.functional as F
+from nltk.translate.bleu_score import corpus_bleu
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -154,7 +155,7 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     decoder_hidden = encoder_hidden
 
     use_teacher_forcing = True if random.random() < teacher_forcing_ratio else False
-
+    answer = ''
     if use_teacher_forcing:
         # Teacher forcing: Feed the target as the next input
         for di in range(target_length):
@@ -162,6 +163,8 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
                 decoder_input, decoder_hidden, encoder_outputs)
             loss += criterion(decoder_output, target_tensor[di])
             decoder_input = target_tensor[di]  # Teacher forcing
+            topv, topi = decoder_output.data.topk(1)
+            answer += output_lang.index2word[topi.item()]
 
     else:
         # Without teacher forcing: use its own predictions as the next input
@@ -172,15 +175,22 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
             loss += criterion(decoder_output, target_tensor[di])
+            answer += output_lang.index2word[topi.item()]
             if decoder_input.item() == EOS_token:
                 break
 
+    target = [output_lang.index2word[i.item()] for i in target_tensor]
     loss.backward()
+
+    bleu_score = corpus_bleu([target], [list(answer)])
+
+    target = ''.join(target)
+    acc = 1 if target == answer else 0
 
     encoder_optimizer.step()
     decoder_optimizer.step()
-
-    return loss.item() / target_length
+    l = loss.item() / target_length
+    return l, acc, bleu_score
 
 
 def indexesFromSentence(lang, sentence):
@@ -219,6 +229,8 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
     plot_losses = []
     print_loss_total = 0  # Reset every print_every
     plot_loss_total = 0  # Reset every plot_every
+    total_acc = 0
+    bleu = 0
 
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
@@ -231,17 +243,21 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
         input_tensor = training_pair[0]
         target_tensor = training_pair[1]
 
-        loss = train(input_tensor, target_tensor, encoder,
+        loss, acc, bleu_score = train(input_tensor, target_tensor, encoder,
                      decoder, encoder_optimizer, decoder_optimizer, criterion)
         print_loss_total += loss
         plot_loss_total += loss
+        total_acc += acc
+        bleu += bleu_score
 
         if iter % print_every == 0:
             print_loss_avg = print_loss_total / print_every
+            print_bleu_avg = bleu / print_every
             print_loss_total = 0
-            print('%s (%d %d%%) %.4f' % (timeSince(start, iter / n_iters),
+            bleu = 0
+            print('%s (%d %d%%) avg loss: %.4f \navg bleu: %.4f \nrunning acc: %.4f' % (timeSince(start, iter / n_iters),
                                          iter, iter / n_iters * 100,
-                                         print_loss_avg))
+                                         print_loss_avg, print_bleu_avg, total_acc / iter))
 
         if iter % plot_every == 0:
             plot_loss_avg = plot_loss_total / plot_every
@@ -258,4 +274,4 @@ if __name__ == "__main__":
     attn_decoder1 = AttnDecoderRNN(hidden_size, output_lang.n_words,
                                    dropout_p=0.1).to(device)
 
-    trainIters(encoder1, attn_decoder1, 45274, print_every=5000)
+    trainIters(encoder1, attn_decoder1, 45274, print_every=100)
