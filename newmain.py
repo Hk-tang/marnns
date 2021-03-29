@@ -295,6 +295,7 @@ def test_model(model, Dyck, data_input, data_output, temp):
             output_vals = torch.zeros(target.shape).to(device)
 
             for j in range(len_input):
+                print(Dyck.lineToTensor(data_input[i][j]))
                 output, hidden, memory = model(
                     Dyck.lineToTensor(data_input[i][j]).to(device), hidden,
                     memory, temp)

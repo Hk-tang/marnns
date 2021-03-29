@@ -62,8 +62,17 @@ class SRNN_Softmax (nn.Module):
         return torch.zeros (self.n_layers, 1, self.hidden_dim).to(device)
     
     def forward(self, input, hidden0, stack, temperature=1.):
-        print("I AM DOING THE FORWARD ALGORITHM")
+        print("self.W_sh", self.W_sh)
+        print("hidden0", hidden0)
+        print("stack[0]", stack[0])
+        print("(stack[0]).view(1, 1, -1)", (stack[0]).view(1, 1, -1))
+        print("self.W_sh (stack[0]).view(1, 1, -1):", self.W_sh (stack[0]).view(1, 1, -1))
+        temp = self.W_sh (stack[0]).view(1, 1, -1)
+        print("temp+hidden0", (temp+hidden0).shape)
         hidden_bar = self.W_sh (stack[0]).view(1, 1, -1) + hidden0
+        print("input", input.shape)
+        print("hidden_bar",hidden_bar)
+        print("self.rnn(input, hidden_bar)",self.rnn(input, hidden_bar))
         ht, hidden = self.rnn(input, hidden_bar)
         output = self.sigmoid(self.W_y(ht)).view(-1, self.output_size)
         self.action_weights = self.softmax (self.W_a (ht)).view(-1)
@@ -71,7 +80,6 @@ class SRNN_Softmax (nn.Module):
         push_side = torch.cat ((self.new_elt, stack[:-1]), dim=0)
         pop_side = torch.cat ((stack[1:], torch.zeros(1, self.memory_dim).to(device)), dim=0)
         stack = self.action_weights [0] * push_side + self.action_weights [1] * pop_side
-        print("I AM DOING THE FORWARD ALGORITHM")
         return output, hidden, stack
 
 
