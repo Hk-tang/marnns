@@ -43,6 +43,8 @@ TEST_SIZE = 5000
 # Create a Dyck language generator
 Dyck = DyckLanguage (NUM_PAR, P_VAL, Q_VAL)
 all_letters = word_set = Dyck.return_vocab ()
+print("vocab", Dyck.return_vocab ())
+exit()
 n_letters = vocab_size = len (word_set)
 
 print('Loading data...')

@@ -45,7 +45,7 @@ class Lang:
 def readLangs(lang1, lang2, reverse=False):
     print("Reading lines...")
     pairs = []
-    with open("data/dataset.tsv", encoding='utf-8') as tsv:
+    with open("data/dataset_len100.tsv", encoding='utf-8') as tsv:
         reader = csv.reader(tsv, delimiter="\t")
         for line in reader:
             pairs.append([line[0], line[1]])
@@ -92,6 +92,66 @@ class EncoderRNN(nn.Module):
     def initHidden(self):
         return torch.zeros(1, 1, self.hidden_size, device=device)
 
+## Stack-Augmented RNN with a Softmax Decision Gate
+class SRNN_Softmax (nn.Module):
+    def __init__(self, hidden_size, output_size, vocab_size, n_layers=1, memory_size=104, memory_dim = 3):
+        #vocab_size is now input_lang, a Lang object. names should be updated
+        super(SRNN_Softmax, self).__init__()
+        self.vocab_size = vocab_size
+        self.output_size = output_size
+        self.n_layers = n_layers
+        # self.hidden_size = hidden_size
+        self.hidden_size = hidden_size
+        self.memory_size = memory_size
+        self.memory_dim = memory_dim
+        self.embedding = nn.Embedding(self.output_size, hidden_size)
+        
+        self.rnn = nn.RNN(self.vocab_size, self.hidden_size, self.n_layers)# similar to GRU in encoderRNN
+
+        self.W_y = nn.Linear(self.hidden_size, self.output_size)
+        self.W_n = nn.Linear(self.hidden_size, self.memory_dim)
+        self.W_a = nn.Linear(self.hidden_size, 2)
+        self.W_sh = nn.Linear (self.memory_dim, self.hidden_size)
+        self.embedding = nn.Embedding(self.hidden_size, self.vocab_size)
+        
+        # Actions -- push : 0 and pop: 1
+        self.softmax = nn.Softmax(dim=2) 
+        self.sigmoid = nn.Sigmoid ()
+    
+
+    def initHidden (self): # named changed from original code
+        return torch.zeros (self.n_layers, 1, self.hidden_size).to(device)
+    
+
+    def initStack(self): #function added
+        return torch.zeros (self.memory_size, self.memory_dim).to(device)
+
+    def to_one_hot_vector(self, inp):
+        # print("self.vocab.index2word", self.vocab.index2word)
+        # target = self.vocab.index2word[int(inp.item())]
+        y = torch.zeros(self.vocab_size)
+        y[inp]=1
+        y = y.view(1, 1, -1)
+        return y
+
+    def forward(self, inp, hidden0, stack, temperature=1.):
+        embedded = self.embedding(inp).view(1, 1, -1)
+        # inp = self.to_one_hot_vector(inp)
+        temp = self.W_sh (stack[0]).view(1, 1, -1)
+        hidden_bar = self.W_sh (stack[0]).view(1, 1, -1) + hidden0
+        # print("inp", inp.shape)
+        # print("embedded", embedded)
+        # ht, hidden = self.rnn(inp, hidden_bar)
+        ht, hidden = self.rnn(embedded, hidden_bar)
+        output = self.sigmoid(self.W_y(ht)).view(-1, self.output_size)
+        self.action_weights = self.softmax (self.W_a (ht)).view(-1)
+        self.new_elt = self.sigmoid (self.W_n(ht)).view(1, self.memory_dim)
+        push_side = torch.cat ((self.new_elt, stack[:-1]), dim=0)
+        pop_side = torch.cat ((stack[1:], torch.zeros(1, self.memory_dim).to(device)), dim=0)
+        stack = self.action_weights [0] * push_side + self.action_weights [1] * pop_side
+
+        return output, hidden, stack
+
 
 class AttnDecoderRNN(nn.Module):
     def __init__(self, hidden_size, output_size, dropout_p=0.1,
@@ -134,7 +194,7 @@ class AttnDecoderRNN(nn.Module):
 def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
           decoder_optimizer, criterion, max_length=MAX_LENGTH):
     encoder_hidden = encoder.initHidden()
-
+    encoder_stack = encoder.initStack()
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
@@ -147,7 +207,8 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     loss = 0
 
     for ei in range(input_length):
-        encoder_output, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
+        # encoder_output, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
+        encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
         encoder_outputs[ei] = encoder_output[0, 0]
 
     decoder_input = torch.tensor([[SOS_token]], device=device)
@@ -164,20 +225,26 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
             loss += criterion(decoder_output, target_tensor[di])
             decoder_input = target_tensor[di]  # Teacher forcing
             topv, topi = decoder_output.data.topk(1)
+            if decoder_input.item() == EOS_token:
+                break
             answer += output_lang.index2word[topi.item()]
 
     else:
         # Without teacher forcing: use its own predictions as the next input
         for di in range(target_length):
+            if di != 0:
+                answer += output_lang.index2word[topi.item()]
             decoder_output, decoder_hidden, decoder_attention = decoder(
                 decoder_input, decoder_hidden, encoder_outputs)
             topv, topi = decoder_output.topk(1)
             decoder_input = topi.squeeze().detach()  # detach from history as input
 
             loss += criterion(decoder_output, target_tensor[di])
-            answer += output_lang.index2word[topi.item()]
+            
+            
             if decoder_input.item() == EOS_token:
                 break
+            
 
     target = [output_lang.index2word[i.item()] for i in target_tensor]
     loss.backward()
@@ -187,10 +254,27 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     target = ''.join(target)
     acc = 1 if target == answer else 0
 
+    ind_acc = 0
+    
+    if 'EOS' in target:
+        target = target[:target.find('EOS')]
+    if 'EOS' in answer:
+        target = target[:target.find('EOS')]
+    if len(answer) < len(target):
+        l = len(answer)
+    else:
+        l = len(target)
+    for i in range(l):
+        if target[i] == answer[i]:
+            ind_acc += 1
+
+    ind_acc/=len(target)
+    results = [target, answer]
+
     encoder_optimizer.step()
     decoder_optimizer.step()
     l = loss.item() / target_length
-    return l, acc, bleu_score
+    return l, acc, bleu_score, ind_acc, results
 
 
 def indexesFromSentence(lang, sentence):
@@ -231,6 +315,7 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
     plot_loss_total = 0  # Reset every plot_every
     total_acc = 0
     bleu = 0
+    ind_acc = 0
 
     encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
     decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
@@ -243,21 +328,25 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
         input_tensor = training_pair[0]
         target_tensor = training_pair[1]
 
-        loss, acc, bleu_score = train(input_tensor, target_tensor, encoder,
+        loss, acc, bleu_score, i_acc, results = train(input_tensor, target_tensor, encoder,
                      decoder, encoder_optimizer, decoder_optimizer, criterion)
         print_loss_total += loss
         plot_loss_total += loss
         total_acc += acc
         bleu += bleu_score
+        ind_acc +=  i_acc
 
         if iter % print_every == 0:
             print_loss_avg = print_loss_total / print_every
             print_bleu_avg = bleu / print_every
+            print_ind_acc = ind_acc / print_every
             print_loss_total = 0
             bleu = 0
-            print('%s (%d %d%%) avg loss: %.4f \navg bleu: %.4f \nrunning acc: %.4f' % (timeSince(start, iter / n_iters),
+            ind_acc = 0
+            print("ex: actual:", results[0], '\npredicted:', results[1])
+            print('%s (%d %d%%) avg loss: %.4f \navg bleu: %.4f \nrunning acc: %.4f \nind acc avg: %.4f' % (timeSince(start, iter / n_iters),
                                          iter, iter / n_iters * 100,
-                                         print_loss_avg, print_bleu_avg, total_acc / iter))
+                                         print_loss_avg, print_bleu_avg, total_acc / iter, print_ind_acc))
 
         if iter % plot_every == 0:
             plot_loss_avg = plot_loss_total / plot_every
@@ -270,8 +359,9 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
 if __name__ == "__main__":
     input_lang, output_lang, pairs = prepareData("infix", 'postfix')
     hidden_size = 256
-    encoder1 = EncoderRNN(input_lang.n_words, hidden_size).to(device)
+    encoder1 = SRNN_Softmax(hidden_size, input_lang.n_words, input_lang.n_words).to(device)
+    # encoder1 = EncoderRNN(input_lang.n_words, hidden_size).to(device)
     attn_decoder1 = AttnDecoderRNN(hidden_size, output_lang.n_words,
                                    dropout_p=0.1).to(device)
 
-    trainIters(encoder1, attn_decoder1, 45274, print_every=100)
+    trainIters(encoder1, attn_decoder1, 30000, print_every=500)
