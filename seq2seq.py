@@ -25,7 +25,7 @@ class Lang:
         self.name = name
         self.word2index = {}
         self.word2count = {}
-        self.index2word = {0: "SOS", 1: "EOS"}
+        self.index2word = {0: "?", 1: "!"} # ? is SOS and ! is EOS
         self.n_words = 2  # Count SOS and EOS
 
     def addSentence(self, sentence):
@@ -45,7 +45,7 @@ class Lang:
 def readLangs(lang1, lang2, reverse=False):
     print("Reading lines...")
     pairs = []
-    with open("data/dataset_len100.tsv", encoding='utf-8') as tsv:
+    with open("data/dataset.tsv", encoding='utf-8') as tsv:
         reader = csv.reader(tsv, delimiter="\t")
         for line in reader:
             pairs.append([line[0], line[1]])
@@ -225,8 +225,6 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
             loss += criterion(decoder_output, target_tensor[di])
             decoder_input = target_tensor[di]  # Teacher forcing
             topv, topi = decoder_output.data.topk(1)
-            if decoder_input.item() == EOS_token:
-                break
             answer += output_lang.index2word[topi.item()]
 
     else:
@@ -249,17 +247,18 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     target = [output_lang.index2word[i.item()] for i in target_tensor]
     loss.backward()
 
-    bleu_score = corpus_bleu([target], [list(answer)])
+    # bleu_score = corpus_bleu([target], [list(answer)])
+    bleu_score = corpus_bleu([target], [list(answer)], weights=(1, 0, 0, 0))
 
     target = ''.join(target)
     acc = 1 if target == answer else 0
 
     ind_acc = 0
     
-    if 'EOS' in target:
-        target = target[:target.find('EOS')]
-    if 'EOS' in answer:
-        target = target[:target.find('EOS')]
+    # if 'EOS' in target:
+    #     target = target[:target.find('EOS')]
+    # if 'EOS' in answer:
+    #     target = target[:target.find('EOS')]
     if len(answer) < len(target):
         l = len(answer)
     else:
@@ -274,7 +273,7 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     encoder_optimizer.step()
     decoder_optimizer.step()
     l = loss.item() / target_length
-    return l, acc, bleu_score, ind_acc, results
+    return l, acc, bleu_score, ind_acc, results, encoder_stack
 
 
 def indexesFromSentence(lang, sentence):
@@ -328,7 +327,7 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
         input_tensor = training_pair[0]
         target_tensor = training_pair[1]
 
-        loss, acc, bleu_score, i_acc, results = train(input_tensor, target_tensor, encoder,
+        loss, acc, bleu_score, i_acc, results, stack = train(input_tensor, target_tensor, encoder,
                      decoder, encoder_optimizer, decoder_optimizer, criterion)
         print_loss_total += loss
         plot_loss_total += loss
@@ -344,9 +343,11 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
             bleu = 0
             ind_acc = 0
             print("ex: actual:", results[0], '\npredicted:', results[1])
+            print("Stack:", stack)
             print('%s (%d %d%%) avg loss: %.4f \navg bleu: %.4f \nrunning acc: %.4f \nind acc avg: %.4f' % (timeSince(start, iter / n_iters),
                                          iter, iter / n_iters * 100,
                                          print_loss_avg, print_bleu_avg, total_acc / iter, print_ind_acc))
+                                        
 
         if iter % plot_every == 0:
             plot_loss_avg = plot_loss_total / plot_every
@@ -364,4 +365,4 @@ if __name__ == "__main__":
     attn_decoder1 = AttnDecoderRNN(hidden_size, output_lang.n_words,
                                    dropout_p=0.1).to(device)
 
-    trainIters(encoder1, attn_decoder1, 30000, print_every=500)
+    trainIters(encoder1, attn_decoder1, 30000, print_every=5000)
