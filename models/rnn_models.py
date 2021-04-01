@@ -15,19 +15,19 @@ class VanillaRNN (nn.Module):
         self.vocab_size = vocab_size
         self.output_size = output_size
         self.n_layers = n_layers
-        self.hidden_dim = hidden_dim
+        self.hidden_size = hidden_dim
 
         self.memory_size = memory_size
         self.memory_dim = memory_dim
 
-        self.rnn = nn.RNN(self.vocab_size, self.hidden_dim, self.n_layers)
+        self.rnn = nn.RNN(self.vocab_size, self.hidden_size, self.n_layers)
 
-        self.W_y = nn.Linear(self.hidden_dim, output_size)
+        self.W_y = nn.Linear(self.hidden_size, output_size)
 
         self.sigmoid = nn.Sigmoid ()
     
-    def init_hidden (self):
-        return torch.zeros (self.n_layers, 1, self.hidden_dim).to(device)
+    def initHidden (self):
+        return torch.zeros (self.n_layers, 1, self.hidden_size).to(device)
     
     def forward(self, input, hidden0, stack=None, temperature=1.):
         ht, hidden = self.rnn(input, hidden0)
