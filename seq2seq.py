@@ -9,6 +9,8 @@ import torch.nn as nn
 from torch import optim
 import torch.nn.functional as F
 from nltk.translate.bleu_score import corpus_bleu
+from models.rnn_models import VanillaRNN
+import os
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
@@ -25,7 +27,7 @@ class Lang:
         self.name = name
         self.word2index = {}
         self.word2count = {}
-        self.index2word = {0: "SOS", 1: "EOS"}
+        self.index2word = {0: "?", 1: "!"}
         self.n_words = 2  # Count SOS and EOS
 
     def addSentence(self, sentence):
@@ -45,7 +47,7 @@ class Lang:
 def readLangs(lang1, lang2, reverse=False):
     print("Reading lines...")
     pairs = []
-    with open("data/dataset_len100.tsv", encoding='utf-8') as tsv:
+    with open("data/dataset.tsv", encoding='utf-8') as tsv:
         reader = csv.reader(tsv, delimiter="\t")
         for line in reader:
             pairs.append([line[0], line[1]])
@@ -194,7 +196,7 @@ class AttnDecoderRNN(nn.Module):
 def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
           decoder_optimizer, criterion, max_length=MAX_LENGTH):
     encoder_hidden = encoder.initHidden()
-    encoder_stack = encoder.initStack()
+    # encoder_stack = encoder.initStack()
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
@@ -207,8 +209,8 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     loss = 0
 
     for ei in range(input_length):
-        # encoder_output, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
-        encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
+        encoder_output, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
+        # encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
         encoder_outputs[ei] = encoder_output[0, 0]
 
     decoder_input = torch.tensor([[SOS_token]], device=device)
@@ -249,17 +251,19 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     target = [output_lang.index2word[i.item()] for i in target_tensor]
     loss.backward()
 
-    bleu_score = corpus_bleu([target], [list(answer)])
+    bleu_score = corpus_bleu([target], [list(answer)], weights=(1,0,0,0))
 
     target = ''.join(target)
-    acc = 1 if target == answer else 0
 
     ind_acc = 0
-    
-    if 'EOS' in target:
-        target = target[:target.find('EOS')]
-    if 'EOS' in answer:
-        target = target[:target.find('EOS')]
+
+    if '!' in target:
+        target = target[:target.find('!')]
+    if '?' in answer:
+        target = target[:target.find('?')]
+
+    acc = 1 if target == answer else 0
+
     if len(answer) < len(target):
         l = len(answer)
     else:
@@ -346,7 +350,8 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
             print("ex: actual:", results[0], '\npredicted:', results[1])
             print('%s (%d %d%%) avg loss: %.4f \navg bleu: %.4f \nrunning acc: %.4f \nind acc avg: %.4f' % (timeSince(start, iter / n_iters),
                                          iter, iter / n_iters * 100,
-                                         print_loss_avg, print_bleu_avg, total_acc / iter, print_ind_acc))
+                                         print_loss_avg, print_bleu_avg, total_acc / print_every, print_ind_acc))
+            total_acc = 0
 
         if iter % plot_every == 0:
             plot_loss_avg = plot_loss_total / plot_every
@@ -359,8 +364,16 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
 if __name__ == "__main__":
     input_lang, output_lang, pairs = prepareData("infix", 'postfix')
     hidden_size = 256
-    encoder1 = SRNN_Softmax(hidden_size, input_lang.n_words, input_lang.n_words).to(device)
-    # encoder1 = EncoderRNN(input_lang.n_words, hidden_size).to(device)
+
+    # n_hidden = 256
+    # axn_vocab = ["0", "1", "2"]
+    # eqn_vocab = ['(', ')', '*', '+', '-', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+    # model = VanillaRNN(n_hidden, len(axn_vocab), len(eqn_vocab)).to(device)
+    # model.load_state_dict(torch.load(os.path.normpath('models/vanilla_rnn_model_weights.pth')))
+    #
+    # encoder1 = SRNN_Softmax(hidden_size, input_lang.n_words, input_lang.n_words).to(device)
+    # encoder1.W_n = model.W_y
+    encoder1 = EncoderRNN(input_lang.n_words, hidden_size).to(device)
     attn_decoder1 = AttnDecoderRNN(hidden_size, output_lang.n_words,
                                    dropout_p=0.1).to(device)
 
