@@ -11,13 +11,15 @@ import torch.nn.functional as F
 from nltk.translate.bleu_score import corpus_bleu
 from models.rnn_models import VanillaRNN
 import os
+import matplotlib.pyplot as plt
+from datetime import datetime
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 SOS_token = 0
 EOS_token = 1
 
-MAX_LENGTH = 100
+MAX_LENGTH = 300
 
 teacher_forcing_ratio = 0.5
 
@@ -33,7 +35,9 @@ class Lang:
         # self.n_words = 0
 
     def addSentence(self, sentence):
-        for word in sentence.split(' '):
+        # for word in sentence.split(' '):
+        #     self.addWord(word)
+        for word in sentence:
             self.addWord(word)
 
     def addWord(self, word):
@@ -46,10 +50,10 @@ class Lang:
             self.word2count[word] += 1
 
 
-def readLangs(lang1, lang2, reverse=False):
+def readLangs(datafile, lang1, lang2, reverse=False):
     print("Reading lines...")
     pairs = []
-    with open("data/dataset.tsv", encoding='utf-8') as tsv:
+    with open(datafile, encoding='utf-8') as tsv:
         reader = csv.reader(tsv, delimiter="\t")
         for line in reader:
             pairs.append([line[0], line[1]])
@@ -313,7 +317,10 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
 
 
 def indexesFromSentence(lang, sentence):
-    return [lang.word2index[word] for word in sentence.split(' ')]
+    indices = []
+    for word in sentence:
+        indices.append(lang.word2index[word])
+    return indices
 
 
 def tensorFromSentence(lang, sentence):
@@ -404,9 +411,9 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
 
 
 if __name__ == "__main__":
-    input_lang, output_lang, pairs = prepareData("infix", 'postfix')
+    input_lang, output_lang, pairs = prepareData("data/dataset_len_25_30.tsv", "infix", 'postfix')
     hidden_size = 256
-    epochs = 2
+    epochs = 10
 
     n_hidden = 256
     axn_vocab = ["0", "1", "2"]
@@ -428,6 +435,8 @@ if __name__ == "__main__":
     run_accs = []
     ind_accs = [] # List of lists
     bleus = []
+    current_time = datetime.now().strftime("%H:%M:%S")
+    print("Current Time =", current_time)
     for _ in range(epochs):
         loss, run_acc, ind_acc, bleu = trainIters(encoder1, attn_decoder1,
                                                   30000, print_every=500)
@@ -436,4 +445,36 @@ if __name__ == "__main__":
         ind_accs.append(ind_acc)
         bleus.append(bleu)
 
-    print(losses, run_accs, ind_accs, bleus)
+        current_time = datetime.now().strftime("%H:%M:%S")
+        print("Current Time =", current_time)
+
+    # print(losses, run_accs, ind_accs, bleus)
+
+    plt.plot(losses)
+    plt.title("Losses per epoch")
+    plt.ylabel("Loss")
+    plt.xlabel("Epoch")
+    plt.savefig("results/Loss.png")
+    plt.close()
+
+    plt.plot(run_accs)
+    plt.title("running acc per epoch")
+    plt.ylabel("Acc")
+    plt.xlabel("Epoch")
+    plt.savefig("results/running.png")
+    plt.close()
+
+    plt.plot(bleus)
+    plt.title("bleu scores per epoch")
+    plt.ylabel("Bleu")
+    plt.xlabel("Epoch")
+    plt.savefig("results/bleu.png")
+    plt.close()
+
+    for i in range(len(ind_accs)):
+        plt.plot(ind_accs[i])
+        plt.title("Accuracy per epoch")
+        plt.ylabel("Accuracy")
+        plt.xlabel("Epoch")
+        plt.savefig("results/epoch_" + str(i) + ".png")
+        plt.close()
