@@ -393,12 +393,12 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
             bleu = 0
             ind_acc = 0
             total_acc = 0
-            print("ex: actual:", results[0], '\npredicted:', results[1])
-            print(
-                '%s (%d %d%%) avg loss: %.4f \navg bleu: %.4f \nrunning acc: %.4f \nind acc avg: %.4f' % (
-                timeSince(start, iter / n_iters),
-                iter, iter / n_iters * 100,
-                print_loss_avg, print_bleu_avg, print_run_acc, print_ind_acc))
+            # print("ex: actual:", results[0], '\npredicted:', results[1])
+            # print(
+            #     '%s (%d %d%%) avg loss: %.4f \navg bleu: %.4f \nrunning acc: %.4f \nind acc avg: %.4f' % (
+            #     timeSince(start, iter / n_iters),
+            #     iter, iter / n_iters * 100,
+            #     print_loss_avg, print_bleu_avg, print_run_acc, print_ind_acc))
             ind_accs.append(print_ind_acc)
 
         if iter % plot_every == 0:
@@ -410,18 +410,58 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
     return print_loss_avg, print_run_acc, ind_accs, print_bleu_avg
 
 
+def evaluate(encoder, decoder, sentence, input_lang, max_length):
+    with torch.no_grad():
+        input_tensor = tensorFromSentence(input_lang, sentence)
+        input_length = input_tensor.size()[0]
+        encoder_hidden = encoder.initHidden()
+
+        encoder_outputs = torch.zeros(max_length, encoder.hidden_size,
+                                      device=device)
+
+        for ei in range(input_length):
+            encoder_output, encoder_hidden = encoder(input_tensor[ei],
+                                                     encoder_hidden)
+            encoder_outputs[ei] += encoder_output[0, 0]
+
+        decoder_input = torch.tensor([[SOS_token]], device=device)  # SOS
+
+        decoder_hidden = encoder_hidden
+
+        decoded_words = []
+        decoder_attentions = torch.zeros(max_length, max_length)
+
+        for di in range(max_length):
+            decoder_output, decoder_hidden, decoder_attention = decoder(
+                decoder_input, decoder_hidden, encoder_outputs)
+            decoder_attentions[di] = decoder_attention.data
+            topv, topi = decoder_output.data.topk(1)
+            if topi.item() == EOS_token:
+                decoded_words.append('<EOS>')
+                break
+            else:
+                decoded_words.append(output_lang.index2word[topi.item()])
+
+            decoder_input = topi.squeeze().detach()
+
+        return decoded_words, decoder_attentions[:di + 1]
+
+
 if __name__ == "__main__":
-    input_lang, output_lang, pairs = prepareData("data/dataset_len_25_30.tsv", "infix", 'postfix')
+    input_lang, output_lang, pairs = prepareData("data/dataset_len_30_35.tsv", "infix", 'postfix')
+    val_size = round(0.1 * len(pairs))
+    val_pairs = pairs[len(pairs) - val_size:]
+    pairs = pairs[:len(pairs) - val_size]
     hidden_size = 256
     epochs = 10
 
     n_hidden = 256
     axn_vocab = ["0", "1", "2"]
-    eqn_vocab = ['(', ')', '*', '+', '-', '/', '0', '1', '2', '3', '4', '5',
-                 '6', '7', '8', '9']
+    # eqn_vocab = ['(', ')', '*', '+', '-', '/', '0', '1', '2', '3', '4', '5',
+    #              '6', '7', '8', '9']
     # model = VanillaRNN(n_hidden, len(axn_vocab), len(eqn_vocab)).to(device)
     # model.load_state_dict(torch.load(os.path.normpath('models/vanilla_rnn_model_weights_256.pth')))
-    encoder1 = VanillaRNN_mod(n_hidden, len(axn_vocab), len(eqn_vocab)).to(
+    encoder1 = VanillaRNN_mod(n_hidden, len(axn_vocab), input_lang.n_words).to(
         device)
     # encoder1 = SRNN_Softmax(hidden_size, input_lang.n_words, input_lang.n_words).to(device)
     # encoder1.W_n = model.W_y
@@ -437,6 +477,7 @@ if __name__ == "__main__":
     bleus = []
     current_time = datetime.now().strftime("%H:%M:%S")
     print("Current Time =", current_time)
+    val_acc = []
     for _ in range(epochs):
         loss, run_acc, ind_acc, bleu = trainIters(encoder1, attn_decoder1,
                                                   30000, print_every=500)
@@ -448,33 +489,47 @@ if __name__ == "__main__":
         current_time = datetime.now().strftime("%H:%M:%S")
         print("Current Time =", current_time)
 
+        correct = 0
+        for sentence in val_pairs:
+            predict, _ = evaluate(encoder1, attn_decoder1, sentence[0], input_lang, MAX_LENGTH)
+            if "".join(predict[:-1]) == sentence[1]:
+                correct += 1
+        val_acc.append(correct/val_size)
+
     # print(losses, run_accs, ind_accs, bleus)
 
-    plt.plot(losses)
-    plt.title("Losses per epoch")
-    plt.ylabel("Loss")
+    plt.plot(val_acc)
+    plt.title("Validation accuracy per epoch")
+    plt.ylabel("Accuracy")
     plt.xlabel("Epoch")
-    plt.savefig("results/Loss.png")
+    plt.savefig("results/val_acc.png")
     plt.close()
 
-    plt.plot(run_accs)
-    plt.title("running acc per epoch")
-    plt.ylabel("Acc")
-    plt.xlabel("Epoch")
-    plt.savefig("results/running.png")
-    plt.close()
-
-    plt.plot(bleus)
-    plt.title("bleu scores per epoch")
-    plt.ylabel("Bleu")
-    plt.xlabel("Epoch")
-    plt.savefig("results/bleu.png")
-    plt.close()
-
-    for i in range(len(ind_accs)):
-        plt.plot(ind_accs[i])
-        plt.title("Accuracy per epoch")
-        plt.ylabel("Accuracy")
-        plt.xlabel("Epoch")
-        plt.savefig("results/epoch_" + str(i) + ".png")
-        plt.close()
+    # plt.plot(losses)
+    # plt.title("Losses per epoch")
+    # plt.ylabel("Loss")
+    # plt.xlabel("Epoch")
+    # plt.savefig("results/Loss.png")
+    # plt.close()
+    #
+    # plt.plot(run_accs)
+    # plt.title("running acc per epoch")
+    # plt.ylabel("Acc")
+    # plt.xlabel("Epoch")
+    # plt.savefig("results/running.png")
+    # plt.close()
+    #
+    # plt.plot(bleus)
+    # plt.title("bleu scores per epoch")
+    # plt.ylabel("Bleu")
+    # plt.xlabel("Epoch")
+    # plt.savefig("results/bleu.png")
+    # plt.close()
+    #
+    # for i in range(len(ind_accs)):
+    #     plt.plot(ind_accs[i])
+    #     plt.title("Accuracy per epoch")
+    #     plt.ylabel("Accuracy")
+    #     plt.xlabel("Epoch")
+    #     plt.savefig("results/epoch_" + str(i) + ".png")
+    #     plt.close()
