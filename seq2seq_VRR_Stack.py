@@ -11,15 +11,205 @@ import torch.nn.functional as F
 from nltk.translate.bleu_score import corpus_bleu
 from models.rnn_models import VanillaRNN
 import os
-import matplotlib.pyplot as plt
-from datetime import datetime
+import numpy as np
+import torch
+import torch.nn.functional as F
+import torch.optim as optim
+import string
+from torch.autograd import Variable
+import pandas as pd
+
+# Dyck library
+from tasks.dyck_generator import DyckLanguage
+
+# RNN Models
+from models.rnn_models import VanillaRNN, SRNN_Softmax, SRNN_Softmax_Temperature, SRNN_GumbelSoftmax
+
+# Set default tensor type "double"
+torch.set_default_tensor_type('torch.DoubleTensor')
+
+randomseed_num = 23
+print ('RANDOM SEED: {}'.format(randomseed_num))
+random.seed (randomseed_num)
+np.random.seed (randomseed_num)
+torch.manual_seed(randomseed_num)
+
+device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu") ## GPU stuff
+print (device)
+
+NUM_PAR = 2
+MIN_SIZE = 2
+MAX_SIZE = 50
+P_VAL = 0.5
+Q_VAL = 0.25
+
+# Number of samples in the training corpus
+TRAINING_SIZE = 30000
+# Number of samples in the test corpus
+TEST_SIZE = 0
+
+# Create a Dyck language generator
+Dyck = DyckLanguage (NUM_PAR, P_VAL, Q_VAL)
+all_letters = word_set = Dyck.return_vocab ()
+n_letters = vocab_size = len (word_set)
+
+# print('Loading data...')
+
+# training_input, training_output, st = Dyck.training_set_generator (TRAINING_SIZE, MIN_SIZE, MAX_SIZE)
+# test_input, test_output, st2 = Dyck.training_set_generator (TEST_SIZE, MAX_SIZE + 2, 2 * MAX_SIZE)
+
+# for i in range (1):
+#     print (training_output[i])
+#     print (Dyck.lineToTensor(training_output[i]))
+#     print (Dyck.lineToTensorSigmoid(training_output[i]))
+
+# Number of samples in the training corpus
+TRAINING_SIZE = 30000
+# Number of samples in the test corpus
+TEST_SIZE = 0
+
+class Stack:
+    def __init__(self):
+        self.items = []
+
+    def isEmpty(self):
+        return self.items == []
+
+    def push(self, item):
+        self.items.append(item)
+
+    def pop(self):
+        return self.items.pop()
+
+    def update(self, item):
+        self.items[len(self.items) - 1] = item
+        return self.items
+
+    def peek(self):
+        return self.items[len(self.items) - 1]
+
+    def size(self):
+        return len(self.items)
+
+    
+
+df = pd.read_csv("data/dataset_len_15_20.tsv", sep="\t",header=None)[0:TRAINING_SIZE+TEST_SIZE]
+df[0] = df[0].str.replace(" ","") 
+df[1] = df[1].str.replace(" ","")
+# df = df.drop(columns=[2])
+
+def infixToPostfix(infixexpr):
+    axns_ohe = []
+    axns_str = []
+    
+    prec = {}
+    prec["*"] = 3
+    prec["/"] = 3
+    prec["+"] = 2
+    prec["-"] = 2
+    prec["("] = 1
+    opStack = Stack()
+    postfixList = []
+    tokenList = [char for char in infixexpr]
+
+    for token in tokenList:
+#         print(token, end=" ")
+        token_vec = [0, 0, 0]  # push, pop, no-op
+        token_str = ""
+        if token not in prec and token != ")":
+            postfixList.append(token)
+            token_vec[2] += 1
+            token_str += "2"
+        elif token == '(':
+            opStack.push(token)
+            token_vec[0] += 1
+            token_str += "0"
+        elif token == ')':
+            topToken = opStack.pop()
+            token_vec[1] += 1
+            token_str += "1"
+            while topToken != '(':
+                postfixList.append(topToken)
+                topToken = opStack.pop()
+#                 token_vec[1] += 1
+        else:
+            while (not opStack.isEmpty()) and (prec[opStack.peek()] >= prec[token]):
+                postfixList.append(opStack.pop())
+                token_vec[1] += 1
+            opStack.push(token)
+            token_vec[0] += 1
+            token_str += "0"
+        axns_ohe.append(token_vec)
+        axns_str.append(token_str)
+    
+    while not opStack.isEmpty():
+        postfixList.append(opStack.pop())
+        
+    return "".join(axns_str), axns_ohe, "".join(postfixList)
+
+def ohe_axn(df):
+    axn_list_list = []
+    for item in df.index:
+        axn_list_list.append(infixToPostfix(df.iloc[item, 0])[0])
+        
+    return axn_list_list
+
+eqn_vocab = ['(', ')', '*', '+', '-', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+axn_vocab = ["0", "1", "2"]
+
+def lineToTensor(line, n_letters, vocab):
+    tensor = torch.zeros(len(line), 1, n_letters)
+    for li, letter in enumerate(line):
+        tensor[li][0][vocab.index(letter)] = 1.0
+    return tensor
+
+lineToTensor("0002021021021", len(axn_vocab), axn_vocab)
+
+lineToTensor("(((9*9)/9)-9)", len(eqn_vocab), eqn_vocab)
+
+df["axn_list"] = ohe_axn(df)
+
+training_input, training_output = df[:TRAINING_SIZE][0].tolist(), df[:TRAINING_SIZE]["axn_list"].tolist()
+test_input, test_output = df[TRAINING_SIZE:TRAINING_SIZE+TEST_SIZE][0].tolist(), df[TRAINING_SIZE:TRAINING_SIZE+TEST_SIZE]["axn_list"].tolist()
+
+print(len(training_input), len(test_input))
+print(len(training_output), len(test_output))
+
+# Number of hidden units
+n_hidden = 256
+# Number of hidden layers
+n_layers = 1
+# Stack size
+stack_size = 104
+stack_dim = 1
+
+## Stack-RNN with Softmax
+# model = SRNN_Softmax (n_hidden, vocab_size, vocab_size, n_layers, stack_size, stack_dim).to(device)
+# model = VanillaRNN(n_hidden, vocab_size, vocab_size).to(device)  # works with dyck
+model = VanillaRNN(n_hidden, len(axn_vocab), len(eqn_vocab)).to(device)  # works with predicting stack actions
+# model = SRNN_Softmax (n_hidden, vocab_size, vocab_size, n_layers, stack_size, stack_dim).to(device)
+
+# Learning rate
+learning_rate = .01
+# Minimum Squared Error (MSE) loss
+criterion = nn.MSELoss() 
+# Adam optimizer (https://arxiv.org/abs/1412.6980)
+optim = torch.optim.Adam(model.parameters(), lr = learning_rate)
+
+print ('Model details:')
+print (model)
+
+# Number of epochs to train our model
+epochs = 2
+# Output threshold
+epsilon = 0.5
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
 SOS_token = 0
 EOS_token = 1
 
-MAX_LENGTH = 300
+MAX_LENGTH = 100
 
 teacher_forcing_ratio = 0.5
 
@@ -48,10 +238,10 @@ class Lang:
             self.word2count[word] += 1
 
 
-def readLangs(datafile, lang1, lang2, reverse=False):
+def readLangs(lang1, lang2, reverse=False):
     print("Reading lines...")
     pairs = []
-    with open(datafile, encoding='utf-8') as tsv:
+    with open("data/dataset_len_15_20.tsv", encoding='utf-8') as tsv:
         reader = csv.reader(tsv, delimiter="\t")
         for line in reader:
             pairs.append([line[0], line[1]])
@@ -102,7 +292,11 @@ class VanillaRNN_mod(nn.Module):
         return torch.zeros(self.n_layers, 1, self.hidden_size).to(device)
 
     def forward(self, input, hidden0, stack=None, temperature=1.):
-        embedded = self.embedding(input).view(1, 1, -1)
+        try:
+            embedded = self.embedding(input).view(1, 1, -1)
+        except:
+            print(input.item())
+            exit()
         ht, hidden = self.rnn(embedded, hidden0)
         output = self.sigmoid(self.W_y(ht)).view(-1, self.output_size)
         return output, hidden  # , stack
@@ -226,7 +420,7 @@ class AttnDecoderRNN(nn.Module):
         return torch.zeros(1, 1, self.hidden_size, device=device)
 
 
-def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
+def train(input_tensor, target_tensor, stack_output_tensor, encoder, decoder, encoder_optimizer,
           decoder_optimizer, criterion, max_length=MAX_LENGTH):
     encoder_hidden = encoder.initHidden()
     # encoder_stack = encoder.initStack()
@@ -235,17 +429,26 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
 
     input_length = input_tensor.size(0)
     target_length = target_tensor.size(0)
-
+    stack_target_length = stack_output_tensor.size(0)
+    
+    output_vals = torch.zeros (input_length)
     encoder_outputs = torch.zeros(max_length, encoder.hidden_size,
                                   device=device)
 
     loss = 0
-
+    criterion2 = nn.MSELoss() 
+    # print("stack_output_tensor.shape", stack_output_tensor.shape)
+    # print("input_tensor.shape", input_tensor.shape)
     for ei in range(input_length):
         encoder_output, encoder_hidden = encoder(input_tensor[ei],
                                                  encoder_hidden)
         # encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
         encoder_outputs[ei] = encoder_output[0, 0]
+        # print("encoder_output", encoder_output)
+        # print("encoder_output.shape", encoder_output.shape)
+        # print("stack_output_tensor[ei]", stack_output_tensor[ei])
+        # print("stack_output_tensor[ei].shape", stack_output_tensor[ei].shape)
+        # loss += criterion2 (encoder_output, stack_output_tensor[ei]) # UNCOMMENT THIS LINE
 
     decoder_input = torch.tensor([[SOS_token]], device=device)
 
@@ -356,22 +559,31 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
     total_acc = 0
     bleu = 0
     ind_acc = 0
+    axn_vocab = ["0", "1", "2", "!"]
 
-    encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
-    decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
-    training_pairs = [tensorsFromPair(random.choice(pairs))
+    encoder_optimizer = torch.optim.SGD(encoder.parameters(), lr=learning_rate)
+    decoder_optimizer = torch.optim.SGD(decoder.parameters(), lr=learning_rate)
+    # training_pairs = [tensorsFromPair(random.choice(pairs))
+    #                   for i in range(n_iters)]
+    training_pairs = [tensorsFromPair(pairs[i])
                       for i in range(n_iters)]
     criterion = nn.NLLLoss()
 
     ind_accs = []
 
     for iter in range(1, n_iters + 1):
+        # print("pairs[iter-1]", pairs[iter-1])
+        # print("len(pairs[iter-1][0])", len(pairs[iter-1][0]))
+
         training_pair = training_pairs[iter - 1]
         input_tensor = training_pair[0]
         target_tensor = training_pair[1]
-
+        stack_output = training_output[iter - 1]
+        stack_output += '!'
+        # print("len(stack_output)", len(stack_output))
+        stack_output_tensor = lineToTensor(stack_output,  len(axn_vocab), axn_vocab)
         loss, acc, bleu_score, i_acc, results = train(input_tensor,
-                                                      target_tensor, encoder,
+                                                      target_tensor, stack_output_tensor, encoder,
                                                       decoder,
                                                       encoder_optimizer,
                                                       decoder_optimizer,
@@ -409,18 +621,21 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
 
 
 if __name__ == "__main__":
-    input_lang, output_lang, pairs = prepareData("data/dataset_len_25_30.tsv", "infix", 'postfix')
+    input_lang, output_lang, pairs = prepareData("infix", 'postfix')
     hidden_size = 256
     epochs = 10
 
     n_hidden = 256
-    axn_vocab = ["0", "1", "2"]
+    axn_vocab = ["0", "1", "2" ,"!"]
     eqn_vocab = ['(', ')', '*', '+', '-', '/', '0', '1', '2', '3', '4', '5',
                  '6', '7', '8', '9']
+    # print(training_input)
+    # exit()
     # model = VanillaRNN(n_hidden, len(axn_vocab), len(eqn_vocab)).to(device)
     # model.load_state_dict(torch.load(os.path.normpath('models/vanilla_rnn_model_weights_256.pth')))
-    encoder1 = VanillaRNN_mod(n_hidden, len(axn_vocab), len(eqn_vocab)).to(
-        device)
+    # encoder1 = VanillaRNN_mod(n_hidden, len(axn_vocab), len(eqn_vocab)).to(device)
+    # encoder1 = VanillaRNN_mod(n_hidden, len(axn_vocab), len(eqn _vocab)).to(device)
+    encoder1 = VanillaRNN_mod(n_hidden, len(axn_vocab), input_lang.n_words).to(device)
     # encoder1 = SRNN_Softmax(hidden_size, input_lang.n_words, input_lang.n_words).to(device)
     # encoder1.W_n = model.W_y
     # encoder1.W_y = model.W_y
@@ -433,9 +648,8 @@ if __name__ == "__main__":
     run_accs = []
     ind_accs = [] # List of lists
     bleus = []
-    current_time = datetime.now().strftime("%H:%M:%S")
-    print("Current Time =", current_time)
     for _ in range(epochs):
+        print("len(training_output)", len(training_output))
         loss, run_acc, ind_acc, bleu = trainIters(encoder1, attn_decoder1,
                                                   30000, print_every=500)
         losses.append(loss)
@@ -443,36 +657,4 @@ if __name__ == "__main__":
         ind_accs.append(ind_acc)
         bleus.append(bleu)
 
-        current_time = datetime.now().strftime("%H:%M:%S")
-        print("Current Time =", current_time)
-
-    # print(losses, run_accs, ind_accs, bleus)
-
-    plt.plot(losses)
-    plt.title("Losses per epoch")
-    plt.ylabel("Loss")
-    plt.xlabel("Epoch")
-    plt.savefig("results/Loss.png")
-    plt.close()
-
-    plt.plot(run_accs)
-    plt.title("running acc per epoch")
-    plt.ylabel("Acc")
-    plt.xlabel("Epoch")
-    plt.savefig("results/running.png")
-    plt.close()
-
-    plt.plot(bleus)
-    plt.title("bleu scores per epoch")
-    plt.ylabel("Bleu")
-    plt.xlabel("Epoch")
-    plt.savefig("results/bleu.png")
-    plt.close()
-
-    for i in range(len(ind_accs)):
-        plt.plot(ind_accs[i])
-        plt.title("Accuracy per epoch")
-        plt.ylabel("Accuracy")
-        plt.xlabel("Epoch")
-        plt.savefig("results/epoch_" + str(i) + ".png")
-        plt.close()
+    print(losses, run_accs, ind_accs, bleus)
