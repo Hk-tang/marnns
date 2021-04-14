@@ -92,8 +92,8 @@ class VanillaRNN_mod(nn.Module):
         self.hidden_size = hidden_dim
         self.memory_size = memory_size
         self.memory_dim = memory_dim
-        # self.rnn = nn.RNN(self.vocab_size, self.hidden_size, self.n_layers)
-        self.rnn = nn.GRU(self.vocab_size, self.hidden_size, self.n_layers)
+        self.rnn = nn.RNN(self.vocab_size, self.hidden_size, self.n_layers)
+        # self.rnn = nn.GRU(self.vocab_size, self.hidden_size, self.n_layers)
         self.W_y = nn.Linear(self.hidden_size, output_size)
         self.sigmoid = nn.Sigmoid()
         self.embedding = nn.Embedding(self.hidden_size, self.vocab_size)
@@ -140,8 +140,8 @@ class SRNN_Softmax(nn.Module):
         self.memory_dim = memory_dim
         # self.embedding = nn.Embedding(self.output_size, hidden_size)
 
-        # self.rnn = nn.RNN(self.vocab_size, self.hidden_size, self.n_layers)# similar to GRU in encoderRNN
-        self.rnn = nn.GRU(self.vocab_size, self.hidden_size, self.n_layers)
+        self.rnn = nn.RNN(self.vocab_size, self.hidden_size, self.n_layers)# similar to GRU in encoderRNN
+        # self.rnn = nn.GRU(self.vocab_size, self.hidden_size, self.n_layers)
 
         self.W_y = nn.Linear(self.hidden_size, self.output_size)
         self.W_n = nn.Linear(self.hidden_size, self.memory_dim)
@@ -229,7 +229,7 @@ class AttnDecoderRNN(nn.Module):
 def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
           decoder_optimizer, criterion, max_length=MAX_LENGTH):
     encoder_hidden = encoder.initHidden()
-    # encoder_stack = encoder.initStack()
+    encoder_stack = encoder.initStack()
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
@@ -242,9 +242,8 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     loss = 0
 
     for ei in range(input_length):
-        encoder_output, encoder_hidden = encoder(input_tensor[ei],
-                                                 encoder_hidden)
-        # encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
+        # encoder_output, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
+        encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
         encoder_outputs[ei] = encoder_output[0, 0]
 
     decoder_input = torch.tensor([[SOS_token]], device=device)
@@ -413,13 +412,14 @@ def evaluate(encoder, decoder, sentence, input_lang, max_length):
         input_tensor = tensorFromSentence(input_lang, sentence)
         input_length = input_tensor.size()[0]
         encoder_hidden = encoder.initHidden()
+        encoder_stack = encoder.initStack()
 
         encoder_outputs = torch.zeros(max_length, encoder.hidden_size,
                                       device=device)
 
         for ei in range(input_length):
-            encoder_output, encoder_hidden = encoder(input_tensor[ei],
-                                                     encoder_hidden)
+            # encoder_output, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
+            encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
             encoder_outputs[ei] += encoder_output[0, 0]
 
         decoder_input = torch.tensor([[SOS_token]], device=device)  # SOS
@@ -446,12 +446,12 @@ def evaluate(encoder, decoder, sentence, input_lang, max_length):
 
 
 if __name__ == "__main__":
-    input_lang, output_lang, pairs = prepareData("data/dataset_len_30_35.tsv", "infix", 'postfix')
+    input_lang, output_lang, pairs = prepareData("data/dataset_len_45_50.tsv", "infix", 'postfix')
     val_size = round(0.1 * len(pairs))
     val_pairs = pairs[len(pairs) - val_size:]
     pairs = pairs[:len(pairs) - val_size]
     hidden_size = 256
-    epochs = 10
+    epochs = 5
 
     n_hidden = 256
     axn_vocab = ["0", "1", "2"]
@@ -459,9 +459,9 @@ if __name__ == "__main__":
     #              '6', '7', '8', '9']
     # model = VanillaRNN(n_hidden, len(axn_vocab), len(eqn_vocab)).to(device)
     # model.load_state_dict(torch.load(os.path.normpath('models/vanilla_rnn_model_weights_256.pth')))
-    encoder1 = VanillaRNN_mod(n_hidden, len(axn_vocab), input_lang.n_words).to(
-        device)
-    # encoder1 = SRNN_Softmax(hidden_size, input_lang.n_words, input_lang.n_words).to(device)
+    # encoder1 = VanillaRNN_mod(n_hidden, len(axn_vocab), input_lang.n_words).to(
+    #     device)
+    encoder1 = SRNN_Softmax(hidden_size, input_lang.n_words, input_lang.n_words).to(device)
     # encoder1.W_n = model.W_y
     # encoder1.W_y = model.W_y
     # encoder1 = EncoderRNN(input_lang.n_words, hidden_size).to(device)
@@ -503,31 +503,31 @@ if __name__ == "__main__":
     plt.savefig("results/val_acc.png")
     plt.close()
 
-    # plt.plot(losses)
-    # plt.title("Losses per epoch")
-    # plt.ylabel("Loss")
-    # plt.xlabel("Epoch")
-    # plt.savefig("results/Loss.png")
-    # plt.close()
-    #
-    # plt.plot(run_accs)
-    # plt.title("running acc per epoch")
-    # plt.ylabel("Acc")
-    # plt.xlabel("Epoch")
-    # plt.savefig("results/running.png")
-    # plt.close()
-    #
-    # plt.plot(bleus)
-    # plt.title("bleu scores per epoch")
-    # plt.ylabel("Bleu")
-    # plt.xlabel("Epoch")
-    # plt.savefig("results/bleu.png")
-    # plt.close()
-    #
-    # for i in range(len(ind_accs)):
-    #     plt.plot(ind_accs[i])
-    #     plt.title("Accuracy per epoch")
-    #     plt.ylabel("Accuracy")
-    #     plt.xlabel("Epoch")
-    #     plt.savefig("results/epoch_" + str(i) + ".png")
-    #     plt.close()
+    plt.plot(losses)
+    plt.title("Losses per epoch")
+    plt.ylabel("Loss")
+    plt.xlabel("Epoch")
+    plt.savefig("results/Loss.png")
+    plt.close()
+
+    plt.plot(run_accs)
+    plt.title("running acc per epoch")
+    plt.ylabel("Acc")
+    plt.xlabel("Epoch")
+    plt.savefig("results/running.png")
+    plt.close()
+
+    plt.plot(bleus)
+    plt.title("bleu scores per epoch")
+    plt.ylabel("Bleu")
+    plt.xlabel("Epoch")
+    plt.savefig("results/bleu.png")
+    plt.close()
+
+    for i in range(len(ind_accs)):
+        plt.plot(ind_accs[i])
+        plt.title("Accuracy per epoch")
+        plt.ylabel("Accuracy")
+        plt.xlabel("Epoch")
+        plt.savefig("results/epoch_" + str(i) + ".png")
+        plt.close()
