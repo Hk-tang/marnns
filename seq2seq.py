@@ -390,12 +390,12 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
             bleu = 0
             ind_acc = 0
             total_acc = 0
-            # print("ex: actual:", results[0], '\npredicted:', results[1])
-            # print(
-            #     '%s (%d %d%%) avg loss: %.4f \navg bleu: %.4f \nrunning acc: %.4f \nind acc avg: %.4f' % (
-            #     timeSince(start, iter / n_iters),
-            #     iter, iter / n_iters * 100,
-            #     print_loss_avg, print_bleu_avg, print_run_acc, print_ind_acc))
+            print("ex: actual:", results[0], '\npredicted:', results[1])
+            print(
+                '%s (%d %d%%) avg loss: %.4f \navg bleu: %.4f \nrunning acc: %.4f \nind acc avg: %.4f' % (
+                timeSince(start, iter / n_iters),
+                iter, iter / n_iters * 100,
+                print_loss_avg, print_bleu_avg, print_run_acc, print_ind_acc))
             ind_accs.append(print_ind_acc)
 
         if iter % plot_every == 0:
@@ -446,7 +446,7 @@ def evaluate(encoder, decoder, sentence, input_lang, max_length):
 
 
 if __name__ == "__main__":
-    input_lang, output_lang, pairs = prepareData("data/dataset_len_45_50.tsv", "infix", 'postfix')
+    input_lang, output_lang, pairs = prepareData("data/dataset_len_5_10.tsv", "infix", 'postfix')
     val_size = round(0.1 * len(pairs))
     val_pairs = pairs[len(pairs) - val_size:]
     pairs = pairs[:len(pairs) - val_size]
@@ -454,7 +454,7 @@ if __name__ == "__main__":
     epochs = 5
 
     n_hidden = 256
-    axn_vocab = ["0", "1", "2"]
+    axn_vocab = ["0", "1", "2", "!"]
     # eqn_vocab = ['(', ')', '*', '+', '-', '/', '0', '1', '2', '3', '4', '5',
     #              '6', '7', '8', '9']
     # model = VanillaRNN(n_hidden, len(axn_vocab), len(eqn_vocab)).to(device)

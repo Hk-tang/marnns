@@ -1,0 +1,23 @@
+RANDOM SEED: 23
+cpu
+30000 0
+30000 0
+Model details:
+VanillaRNN(
+  (rnn): RNN(16, 256)
+  (W_y): Linear(in_features=256, out_features=3, bias=True)
+  (sigmoid): Sigmoid()
+)
+Reading lines...
+Read 30000 sentence pairs
+Counting words...
+Counted words:
+infix 18
+postfix 16
+Current Time = 16:10:57
+ex: actual: 04-0/! 
+predicted: 444+-
+0m 32s (- 28m 17s) (500 1%) avg loss: 2.0718 
+avg bleu: 0.2780 
+running acc: 0.0000 
+ind acc avg: 0.1620
