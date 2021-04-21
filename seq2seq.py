@@ -140,7 +140,8 @@ class SRNN_Softmax(nn.Module):
         self.memory_dim = memory_dim
         # self.embedding = nn.Embedding(self.output_size, hidden_size)
 
-        self.rnn = nn.RNN(self.vocab_size, self.hidden_size, self.n_layers)# similar to GRU in encoderRNN
+        self.rnn = nn.RNN(self.vocab_size, self.hidden_size,
+                          self.n_layers)  # similar to GRU in encoderRNN
         # self.rnn = nn.GRU(self.vocab_size, self.hidden_size, self.n_layers)
 
         self.W_y = nn.Linear(self.hidden_size, self.output_size)
@@ -202,6 +203,7 @@ class AttnDecoderRNN(nn.Module):
         self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
         self.dropout = nn.Dropout(self.dropout_p)
         self.gru = nn.GRU(self.hidden_size, self.hidden_size)
+        self.rnn = nn.RNN(self.hidden_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
     def forward(self, input, hidden, encoder_outputs):
@@ -217,7 +219,7 @@ class AttnDecoderRNN(nn.Module):
         output = self.attn_combine(output).unsqueeze(0)
 
         output = F.relu(output)
-        output, hidden = self.gru(output, hidden)
+        output, hidden = self.rnn(output, hidden)
 
         output = F.log_softmax(self.out(output[0]), dim=1)
         return output, hidden, attn_weights
@@ -229,7 +231,7 @@ class AttnDecoderRNN(nn.Module):
 def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
           decoder_optimizer, criterion, max_length=MAX_LENGTH):
     encoder_hidden = encoder.initHidden()
-    encoder_stack = encoder.initStack()
+    # encoder_stack = encoder.initStack()
     encoder_optimizer.zero_grad()
     decoder_optimizer.zero_grad()
 
@@ -242,8 +244,9 @@ def train(input_tensor, target_tensor, encoder, decoder, encoder_optimizer,
     loss = 0
 
     for ei in range(input_length):
-        # encoder_output, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
-        encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
+        encoder_output, encoder_hidden = encoder(input_tensor[ei],
+                                                 encoder_hidden)
+        # encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
         encoder_outputs[ei] = encoder_output[0, 0]
 
     decoder_input = torch.tensor([[SOS_token]], device=device)
@@ -390,12 +393,22 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
             bleu = 0
             ind_acc = 0
             total_acc = 0
-            print("ex: actual:", results[0], '\npredicted:', results[1])
-            print(
-                '%s (%d %d%%) avg loss: %.4f \navg bleu: %.4f \nrunning acc: %.4f \nind acc avg: %.4f' % (
-                timeSince(start, iter / n_iters),
-                iter, iter / n_iters * 100,
-                print_loss_avg, print_bleu_avg, print_run_acc, print_ind_acc))
+            with open("results/5_10/training_results.txt", "a",
+                      encoding="utf-8") as file:
+                file.write("ex: actual: " + results[0] +
+                           '\npredicted: ' + results[1] + "\n")
+                file.write(str(timeSince(start, iter / n_iters)) + " (" +
+                           str(iter) + " " + str(iter / n_iters * 100) +
+                           "%) avg loss: " + str(print_loss_avg) +
+                           "\navg bleu: " + str(print_bleu_avg) +
+                           "\nrunning acc: " + str(print_run_acc) +
+                           "\nind acc avg: " + str(print_ind_acc) + "\n")
+            # print("ex: actual:", results[0], '\npredicted:', results[1])
+            # print(
+            #     '%s (%d %d%%) avg loss: %.4f \navg bleu: %.4f \nrunning acc: %.4f \nind acc avg: %.4f' % (
+            #     timeSince(start, iter / n_iters),
+            #     iter, iter / n_iters * 100,
+            #     print_loss_avg, print_bleu_avg, print_run_acc, print_ind_acc))
             ind_accs.append(print_ind_acc)
 
         if iter % plot_every == 0:
@@ -412,14 +425,15 @@ def evaluate(encoder, decoder, sentence, input_lang, max_length):
         input_tensor = tensorFromSentence(input_lang, sentence)
         input_length = input_tensor.size()[0]
         encoder_hidden = encoder.initHidden()
-        encoder_stack = encoder.initStack()
+        # encoder_stack = encoder.initStack()
 
         encoder_outputs = torch.zeros(max_length, encoder.hidden_size,
                                       device=device)
 
         for ei in range(input_length):
-            # encoder_output, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
-            encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
+            encoder_output, encoder_hidden = encoder(input_tensor[ei],
+                                                     encoder_hidden)
+            # encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
             encoder_outputs[ei] += encoder_output[0, 0]
 
         decoder_input = torch.tensor([[SOS_token]], device=device)  # SOS
@@ -446,12 +460,13 @@ def evaluate(encoder, decoder, sentence, input_lang, max_length):
 
 
 if __name__ == "__main__":
-    input_lang, output_lang, pairs = prepareData("data/dataset_len_5_10.tsv", "infix", 'postfix')
+    input_lang, output_lang, pairs = prepareData("data/dataset_len_35_40.tsv",
+                                                 "infix", 'postfix')
     val_size = round(0.1 * len(pairs))
     val_pairs = pairs[len(pairs) - val_size:]
     pairs = pairs[:len(pairs) - val_size]
     hidden_size = 256
-    epochs = 5
+    epochs = 3
 
     n_hidden = 256
     axn_vocab = ["0", "1", "2", "!"]
@@ -459,9 +474,9 @@ if __name__ == "__main__":
     #              '6', '7', '8', '9']
     # model = VanillaRNN(n_hidden, len(axn_vocab), len(eqn_vocab)).to(device)
     # model.load_state_dict(torch.load(os.path.normpath('models/vanilla_rnn_model_weights_256.pth')))
-    # encoder1 = VanillaRNN_mod(n_hidden, len(axn_vocab), input_lang.n_words).to(
-    #     device)
-    encoder1 = SRNN_Softmax(hidden_size, input_lang.n_words, input_lang.n_words).to(device)
+    encoder1 = VanillaRNN_mod(n_hidden, len(axn_vocab), input_lang.n_words).to(
+        device)
+    # encoder1 = SRNN_Softmax(hidden_size, input_lang.n_words, input_lang.n_words).to(device)
     # encoder1.W_n = model.W_y
     # encoder1.W_y = model.W_y
     # encoder1 = EncoderRNN(input_lang.n_words, hidden_size).to(device)
@@ -471,7 +486,7 @@ if __name__ == "__main__":
 
     losses = []
     run_accs = []
-    ind_accs = [] # List of lists
+    ind_accs = []  # List of lists
     bleus = []
     current_time = datetime.now().strftime("%H:%M:%S")
     print("Current Time =", current_time)
@@ -489,12 +504,29 @@ if __name__ == "__main__":
 
         correct = 0
         for sentence in val_pairs:
-            predict, _ = evaluate(encoder1, attn_decoder1, sentence[0], input_lang, MAX_LENGTH)
+            predict, _ = evaluate(encoder1, attn_decoder1, sentence[0],
+                                  input_lang, MAX_LENGTH)
             if "".join(predict[:-1]) == sentence[1]:
                 correct += 1
-        val_acc.append(correct/val_size)
+        val_acc.append(correct / val_size)
 
     # print(losses, run_accs, ind_accs, bleus)
+
+    with open("results/5_10/val_acc.txt", "w", encoding="utf-8") as f:
+        for line in val_acc:
+            f.write(str(line) + "\n")
+
+    with open("results/5_10/losses.txt", "w", encoding="utf-8") as f:
+        for line in losses:
+            f.write(str(line) + "\n")
+
+    with open("results/5_10/run_acc.txt", "w", encoding="utf-8") as f:
+        for line in run_accs:
+            f.write(str(line) + "\n")
+
+    with open("results/5_10/bleus.txt", "w", encoding="utf-8") as f:
+        for line in bleus:
+            f.write(str(line) + "\n")
 
     plt.plot(val_acc)
     plt.title("Validation accuracy per epoch")
@@ -525,9 +557,13 @@ if __name__ == "__main__":
     plt.close()
 
     for i in range(len(ind_accs)):
+        with open("results/epoch_" + str(i) + ".txt", "w",
+                  encoding="utf-8") as f:
+            for line in ind_accs[i]:
+                f.write(str(line) + "\n")
         plt.plot(ind_accs[i])
-        plt.title("Accuracy per epoch")
+        plt.title("Accuracy per iteration")
         plt.ylabel("Accuracy")
-        plt.xlabel("Epoch")
+        plt.xlabel("Iteration")
         plt.savefig("results/epoch_" + str(i) + ".png")
         plt.close()
