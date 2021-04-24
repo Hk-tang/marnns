@@ -1,0 +1,13 @@
+RLSRNN
+0m 10s (- 9m 28s) (500 1%) avg loss: 1.8766 
+avg bleu: 0.4146 
+running acc: 0.0000 
+ind acc avg: 0.2937
+0m 21s (- 9m 8s) (1000 3%) avg loss: 1.8308 
+avg bleu: 0.4171 
+running acc: 0.0020 
+ind acc avg: 0.3040
+0m 31s (- 8m 57s) (1500 5%) avg loss: 1.7814 
+avg bleu: 0.4353 
+running acc: 0.0000 
+ind acc avg: 0.3220

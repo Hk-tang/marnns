@@ -20,6 +20,7 @@ from torch.autograd import Variable
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
+import seaborn as sns; sns.set()
 
 # Dyck library
 from tasks.dyck_generator import DyckLanguage
@@ -93,17 +94,17 @@ class Stack:
     def size(self):
         return len(self.items)
 
-    
+
 
 df = pd.read_csv("data/dataset_len_5_10.tsv", sep="\t",header=None)[0:TRAINING_SIZE+TEST_SIZE]
-df[0] = df[0].str.replace(" ","") 
+df[0] = df[0].str.replace(" ","")
 df[1] = df[1].str.replace(" ","")
 # df = df.drop(columns=[2])
 
 def infixToPostfix(infixexpr):
     axns_ohe = []
     axns_str = []
-    
+
     prec = {}
     prec["*"] = 3
     prec["/"] = 3
@@ -114,8 +115,9 @@ def infixToPostfix(infixexpr):
     postfixList = []
     tokenList = [char for char in infixexpr]
 
+
     for token in tokenList:
-#         print(token, end=" ")
+        # print(token, end=" ")
         token_vec = [0, 0, 0]  # push, pop, no-op
         token_str = ""
         if token not in prec and token != ")":
@@ -143,17 +145,26 @@ def infixToPostfix(infixexpr):
             token_str += "0"
         axns_ohe.append(token_vec)
         axns_str.append(token_str)
-    
+
     while not opStack.isEmpty():
         postfixList.append(opStack.pop())
-        
+
+
+
     return "".join(axns_str), axns_ohe, "".join(postfixList)
 
 def ohe_axn(df):
     axn_list_list = []
     for item in df.index:
         axn_list_list.append(infixToPostfix(df.iloc[item, 0])[0])
-        
+
+    return axn_list_list
+
+def count_axn(df):
+    axn_list_list = []
+    for item in df.index:
+        axn_list_list.append(infixToPostfix(df.iloc[item, 0])[1])
+
     return axn_list_list
 
 eqn_vocab = ['(', ')', '*', '+', '-', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
@@ -194,7 +205,7 @@ model = VanillaRNN(n_hidden, len(axn_vocab), len(eqn_vocab)).to(device)  # works
 # Learning rate
 learning_rate = .01
 # Minimum Squared Error (MSE) loss
-criterion = nn.MSELoss() 
+criterion = nn.MSELoss()
 # Adam optimizer (https://arxiv.org/abs/1412.6980)
 optim = torch.optim.Adam(model.parameters(), lr = learning_rate)
 
@@ -324,7 +335,7 @@ class EncoderRNN(nn.Module):
 ## Stack-Augmented RNN with a Softmax Decision Gate
 class SRNN_Softmax(nn.Module):
     def __init__(self, hidden_size, output_size, vocab_size, n_layers=1,
-                 memory_size=104, memory_dim=3):
+                 memory_size=104, memory_dim=1):
         # vocab_size is now input_lang, a Lang object. names should be updated
         super(SRNN_Softmax, self).__init__()
         self.vocab_size = vocab_size
@@ -336,8 +347,8 @@ class SRNN_Softmax(nn.Module):
         self.memory_dim = memory_dim
         # self.embedding = nn.Embedding(self.output_size, hidden_size)
 
-        # self.rnn = nn.RNN(self.vocab_size, self.hidden_size, self.n_layers)# similar to GRU in encoderRNN
-        self.rnn = nn.GRU(self.vocab_size, self.hidden_size, self.n_layers)
+        self.rnn = nn.RNN(self.vocab_size, self.hidden_size, self.n_layers)# similar to GRU in encoderRNN
+        # self.rnn = nn.GRU(self.vocab_size, self.hidden_size, self.n_layers)
 
         self.W_y = nn.Linear(self.hidden_size, self.output_size)
         self.W_n = nn.Linear(self.hidden_size, self.memory_dim)
@@ -353,7 +364,7 @@ class SRNN_Softmax(nn.Module):
         return torch.zeros(self.n_layers, 1, self.hidden_size).to(device)
 
     def initStack(self):  # function added
-        return torch.zeros(self.memory_size, self.memory_dim).to(device)
+        return torch.zeros(self.memory_size, 1).to(device)
 
     def to_one_hot_vector(self, inp):
         # print("self.vocab.index2word", self.vocab.index2word)
@@ -363,7 +374,7 @@ class SRNN_Softmax(nn.Module):
         y = y.view(1, 1, -1)
         return y
 
-    def forward(self, inp, hidden0, stack, temperature=1.):
+    def forward(self, inp, hidden0, stack, stack_axn=None, temperature=1.):
         embedded = self.embedding(inp).view(1, 1, -1)
 
         hidden_bar = self.W_sh(stack[0]).view(1, 1, -1) + hidden0
@@ -372,16 +383,51 @@ class SRNN_Softmax(nn.Module):
         output = self.sigmoid(self.W_y(ht)).view(-1, self.output_size)
 
         self.action_weights = self.softmax(self.W_a(ht)).view(-1)
-        
+
         self.new_elt = self.sigmoid(self.W_n(ht)).view(1, self.memory_dim)
         push_side = torch.cat((self.new_elt, stack[:-1]), dim=0)
         pop_side = torch.cat(
             (stack[1:], torch.zeros(1, self.memory_dim).to(device)), dim=0)
-        stack = self.action_weights[0] * push_side + self.action_weights[
-            1] * pop_side
+        # stack = self.action_weights[0] * push_side + self.action_weights[
+        #     1] * pop_side
+
+        if stack_axn != None:
+            if stack_axn == 0:
+                push = 1
+                pop = 0
+            elif stack_axn == 1:
+                push = 0
+                pop = 1
+            elif stack_axn == 2:
+                push = 0.5
+                pop = 0.5
+
+            stack = push*torch.ceil(push_side) + pop*torch.ceil(pop_side)
+
+        else:
+            stack = self.action_weights[0] * push_side + self.action_weights[1] * pop_side
 
         return output, hidden, stack
 
+class DecoderRNN(nn.Module):
+    def __init__(self, hidden_size, output_size):
+        super(DecoderRNN, self).__init__()
+        self.hidden_size = hidden_size
+
+        self.embedding = nn.Embedding(output_size, hidden_size)
+        self.gru = nn.GRU(hidden_size, hidden_size)
+        self.out = nn.Linear(hidden_size, output_size)
+        self.softmax = nn.LogSoftmax(dim=1)
+
+    def forward(self, input, hidden):
+        output = self.embedding(input).view(1, 1, -1)
+        output = F.relu(output)
+        output, hidden = self.gru(output, hidden)
+        output = self.softmax(self.out(output[0]))
+        return output, hidden
+
+    def initHidden(self):
+        return torch.zeros(1, 1, self.hidden_size, device=device)
 
 class AttnDecoderRNN(nn.Module):
     def __init__(self, hidden_size, output_size, dropout_p=0.1,
@@ -396,7 +442,8 @@ class AttnDecoderRNN(nn.Module):
         self.attn = nn.Linear(self.hidden_size * 2, self.max_length)
         self.attn_combine = nn.Linear(self.hidden_size * 2, self.hidden_size)
         self.dropout = nn.Dropout(self.dropout_p)
-        self.gru = nn.GRU(self.hidden_size, self.hidden_size)
+        # self.gru = nn.GRU(self.hidden_size, self.hidden_size)
+        self.gru = nn.RNN(self.hidden_size, self.hidden_size)
         self.out = nn.Linear(self.hidden_size, self.output_size)
 
     def forward(self, input, hidden, encoder_outputs):
@@ -421,7 +468,7 @@ class AttnDecoderRNN(nn.Module):
         return torch.zeros(1, 1, self.hidden_size, device=device)
 
 
-def train(input_tensor, target_tensor, stack_output_tensor, encoder, decoder, encoder_optimizer,
+def train(input_tensor, target_tensor, stack_output, encoder, decoder, encoder_optimizer,
           decoder_optimizer, criterion, max_length=MAX_LENGTH):
     encoder_hidden = encoder.initHidden()
     encoder_stack = encoder.initStack()
@@ -430,27 +477,33 @@ def train(input_tensor, target_tensor, stack_output_tensor, encoder, decoder, en
 
     input_length = input_tensor.size(0)
     target_length = target_tensor.size(0)
-    stack_target_length = stack_output_tensor.size(0)
-    
+    # stack_target_length = stack_output.size(0)
+
     output_vals = torch.zeros (input_length)
     encoder_outputs = torch.zeros(max_length, encoder.hidden_size,
                                   device=device)
 
     loss = 0
-    criterion2 = nn.MSELoss() 
-    # print("stack_output_tensor.shape", stack_output_tensor.shape)
-    # print("input_tensor.shape", input_tensor.shape)
+    criterion2 = nn.L1Loss()
     for ei in range(input_length):
+        if ei == input_length-1:
+            stack_axn = 2
+        else:
+            stack_axn = int(stack_output[ei])
+        # print("stack_axn",stack_axn)
         # encoder_output, encoder_hidden = encoder(input_tensor[ei],
                                                 #  encoder_hidden)
-        encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
+        # encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
+        encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack, stack_axn)
         encoder_outputs[ei] = encoder_output[0, 0]
-        # print("encoder_output", encoder_output)
-        # print("encoder_output.shape", encoder_output.shape)
-        # print("stack_output_tensor[ei]", stack_output_tensor[ei])
-        # print("stack_output_tensor[ei].shape", stack_output_tensor[ei].shape)
-        # loss += criterion2 (encoder_output, stack_output_tensor[ei]) # UNCOMMENT THIS LINE
 
+    stack_len = sum([i[0] for i in encoder_stack.tolist()])
+    # if stack_len != 0:
+    #
+    #     print("stack_len", stack_len)
+    #     exit()
+
+    # loss += criterion2(torch.tensor([[stack_len]], device=device), torch.tensor([[0]], device=device))
 
     decoder_input = torch.tensor([[SOS_token]], device=device)
 
@@ -552,7 +605,7 @@ def timeSince(since, percent):
     return '%s (- %s)' % (asMinutes(s), asMinutes(rs))
 
 
-def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
+def trainIters(encoder, decoder, n_iters, f,print_every=1000, plot_every=100,
                learning_rate=0.01):
     start = time.time()
     plot_losses = []
@@ -567,13 +620,15 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
     decoder_optimizer = torch.optim.SGD(decoder.parameters(), lr=learning_rate)
     # training_pairs = [tensorsFromPair(random.choice(pairs))
     #                   for i in range(n_iters)]
+    # random.shuffle(pairs)
     training_pairs = [tensorsFromPair(pairs[i])
-                      for i in range(n_iters)]
+                      for i in range(len(pairs))]
     criterion = nn.NLLLoss()
 
     ind_accs = []
 
-    for iter in range(1, n_iters + 1):
+
+    for iter in range(1, len(pairs)):
         # print("pairs[iter-1]", pairs[iter-1])
         # print("len(pairs[iter-1][0])", len(pairs[iter-1][0]))
 
@@ -581,11 +636,12 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
         input_tensor = training_pair[0]
         target_tensor = training_pair[1]
         stack_output = training_output[iter - 1]
-        stack_output += '!'
+        # stack_amount =
+        # stack_output += '!'
         # print("len(stack_output)", len(stack_output))
-        stack_output_tensor = lineToTensor(stack_output,  len(axn_vocab), axn_vocab)
+        # stack_output_tensor = lineToTensor(stack_output,  len(axn_vocab), axn_vocab)
         loss, acc, bleu_score, i_acc, results = train(input_tensor,
-                                                      target_tensor, stack_output_tensor, encoder,
+                                                      target_tensor, stack_output, encoder,
                                                       decoder,
                                                       encoder_optimizer,
                                                       decoder_optimizer,
@@ -611,6 +667,11 @@ def trainIters(encoder, decoder, n_iters, print_every=1000, plot_every=100,
                 timeSince(start, iter / n_iters),
                 iter, iter / n_iters * 100,
                 print_loss_avg, print_bleu_avg, print_run_acc, print_ind_acc))
+            f.write(
+                '%s (%d %d%%) avg loss: %.4f \navg bleu: %.4f \nrunning acc: %.4f \nind acc avg: %.4f\n' % (
+                timeSince(start, iter / n_iters),
+                iter, iter / n_iters * 100,
+                print_loss_avg, print_bleu_avg, print_run_acc, print_ind_acc))
             ind_accs.append(print_ind_acc)
 
         if iter % plot_every == 0:
@@ -627,14 +688,14 @@ def evaluate(encoder, decoder, sentence, input_lang, max_length):
         input_tensor = tensorFromSentence(input_lang, sentence)
         input_length = input_tensor.size()[0]
         encoder_hidden = encoder.initHidden()
-        # encoder_stack = encoder.initStack()
+        encoder_stack = encoder.initStack()
 
         encoder_outputs = torch.zeros(max_length, encoder.hidden_size,
                                       device=device)
 
         for ei in range(input_length):
-            encoder_output, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
-            # encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
+            # encoder_output, encoder_hidden = encoder(input_tensor[ei], encoder_hidden)
+            encoder_output, encoder_hidden, encoder_stack = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
             encoder_outputs[ei] += encoder_output[0, 0]
 
         decoder_input = torch.tensor([[SOS_token]], device=device)  # SOS
@@ -660,13 +721,111 @@ def evaluate(encoder, decoder, sentence, input_lang, max_length):
         return decoded_words, decoder_attentions[:di + 1]
 
 
+
+#############VISUALIZATION#################################################
+
+def get_hidden_and_stack_info (model, input, output, input_lang):
+    # Turn on the evaluation mode for the model
+    model.eval()
+    # Hidden state values
+    hidden_states = []
+    # Stack configuration
+    stack_config = []
+    # Stack operation weights
+    operation_weights = []
+    # Most recently pushed element to the stack
+    new_elt_inserted = []
+
+    input = tensorFromSentence(input_lang, input)
+
+    with torch.no_grad():
+        len_input = len (input)
+        model.zero_grad ()
+
+        # Initialize the hidden state
+        hidden = model.initHidden()
+        # Initalize the stack configuration
+        # stack = torch.zeros (stack_size, stack_dim).to(device)
+        stack = model.initStack()
+        # Target values
+        # target = Dyck.lineToTensorSigmoid(output)
+        # # Output values
+        # output_vals = torch.zeros (target.shape).to(device)
+
+        for j in range (len_input):
+            # Feed the input to the model
+            output, hidden, stack = model (torch.tensor(input[j]).to(device), hidden, stack)
+            # encoder_output, encoder_hidden, encoder_stack, _ = encoder(input_tensor[ei], encoder_hidden, encoder_stack)
+            # Hidden state values
+            hidden_states.append (hidden.cpu().numpy())
+            # Stack configuration
+            stack_config.append (stack.cpu().numpy())
+            # Stack operation weights
+            operation_weights.append (model.action_weights.cpu().numpy())
+            # New element inserted to the stack
+            new_elt_inserted.append (model.new_elt.cpu().numpy())
+            # Output value
+            # output_vals [j] = output.view(-1)
+
+        # # Binarize the entries based on the output threshold
+        # out_np = np.int_(output_vals.cpu().detach().numpy() >= epsilon)
+        # target_np = np.int_(target.cpu().detach().numpy())
+        #
+        # # (Double-)check whether the output values and the target values are the same
+        # if np.all(np.equal(out_np, target_np)) and (out_np.flatten() == target_np.flatten()).all():
+        #     print ('Correct!')
+        # else:
+        #     print ('Incorrect')
+
+    return hidden_states, stack_config, operation_weights, new_elt_inserted
+
+def visualize_stack_operation_weights (operation_weights, input_seq, timestep=0):
+    # Stack operation labels
+    labels = ['PUSH', 'POP']
+    stack_op_weights = np.squeeze(operation_weights)
+    plt.figure(figsize=(16, 5))
+    fig = sns.heatmap(stack_op_weights.T, cmap=sns.light_palette("#34495e"),xticklabels=input_seq, yticklabels=labels, vmin=0, vmax=1)
+    fig.set_title('Strength of Stack Operations at Each Timestep', fontsize=17)
+    cbar = fig.collections[0].colorbar
+    cbar.set_ticks(np.linspace(0,1,6))
+    plt.xlabel('Sequence', fontsize=16)
+    plt.ylabel('Actions', fontsize=16)
+    plt.xticks(fontsize=13)
+    plt.yticks(fontsize=14)
+    plt.show()
+
+def visualize_stack_configuration (stack_config, input, dimension=0):
+    stack_bound = 13 #len (input)
+    print (np.array(stack_config).shape)
+    print (stack_bound)
+    stack_config = np.round(np.array(stack_config)[:, :stack_bound+1, dimension], decimals=3)
+    location = np.arange (1, stack_bound+2)
+    plt.figure(figsize=(18, 12))
+    fig = sns.heatmap(stack_config.T, cmap='viridis', yticklabels = location, xticklabels=input, annot=True, cbar=False)
+    fig.invert_yaxis()
+    fig.set_title('Stack Entries at Each Timestep', fontsize=17)
+    plt.xticks(fontsize=13)
+    plt.yticks(fontsize=13)
+    plt.xlabel('Sequence', fontsize=16)
+    plt.ylabel('Stack Location', fontsize=16)
+    plt.show()
+
+
+
+
+
+
+
+##########################################################################
+
+
 if __name__ == "__main__":
     input_lang, output_lang, pairs = prepareData("infix", 'postfix')
     val_size = round(0.1 * len(pairs))
     val_pairs = pairs[len(pairs) - val_size:]
     pairs = pairs[:len(pairs) - val_size]
     hidden_size = 256
-    epochs = 5
+    epochs = 3
 
     n_hidden = 256
     axn_vocab = ["0", "1", "2" ,"!"]
@@ -680,12 +839,23 @@ if __name__ == "__main__":
     # encoder1 = VanillaRNN_mod(n_hidden, len(axn_vocab), len(eqn _vocab)).to(device)
     # encoder1 = VanillaRNN_mod(n_hidden, len(axn_vocab), input_lang.n_words).to(device)
     encoder1 = SRNN_Softmax(hidden_size, input_lang.n_words, input_lang.n_words).to(device)
+    # encoder1.load_state_dict(torch.load('models/encoder_supervised_stack_axnsNOOPhalfhalffixedepoch1.pth'))
     # encoder1.W_n = model.W_y
     # encoder1.W_y = model.W_y
     # encoder1 = EncoderRNN(input_lang.n_words, hidden_size).to(device)
 
     attn_decoder1 = AttnDecoderRNN(hidden_size, output_lang.n_words,
                                    dropout_p=0.1).to(device)
+
+    # attn_decoder1.load_state_dict(torch.load('models/decoder_supervised_stack_axns.pth'))
+    # input_seq, output_seq = random.choice(val_pairs)
+    # input_seq, output_seq = pairs[0]
+    # print(training_output[0])
+    # print(input_seq)
+    # hidden_states, stack_config, operation_weights, new_elt_inserted = get_hidden_and_stack_info (encoder1, input_seq, output_seq, input_lang)
+    # visualize_stack_operation_weights (operation_weights, input_seq)
+    # visualize_stack_configuration (stack_config, input_seq, 0)
+    # exit()
 
     losses = []
     run_accs = []
@@ -695,8 +865,11 @@ if __name__ == "__main__":
     print("Current Time =", current_time)
     val_acc = []
     for _ in range(epochs):
+
+        f = open("SupSRNN3Epochs5_10"+str(_)+".csv", "w")
+        f.write("RLSRNN"+"\n")
         loss, run_acc, ind_acc, bleu = trainIters(encoder1, attn_decoder1,
-                                                  len(pairs), print_every=500)
+                                                  30000,f, print_every=500)
         losses.append(loss)
         run_accs.append(run_acc)
         ind_accs.append(ind_acc)
@@ -707,13 +880,22 @@ if __name__ == "__main__":
 
         correct = 0
         for sentence in val_pairs:
-            predict, _ = evaluate(encoder1, attn_decoder1, sentence[0], input_lang, MAX_LENGTH)
+            predict, x = evaluate(encoder1, attn_decoder1, sentence[0], input_lang, MAX_LENGTH)
             if "".join(predict[:-1]) == sentence[1]:
                 correct += 1
         val_acc.append(correct/val_size)
+        f.write("losses: " + str(losses) +"\n")
+        f.write("run_accs: " + str(run_accs) +"\n")
+        f.write("ind_accs: " + str(ind_accs) +"\n")
+        f.write("bleus: " + str(bleus) +"\n")
+        f.write("val_acc: " + str(val_acc) +"\n")
 
+        f.close()
+
+        torch.save(encoder1.state_dict(), 'models/encoder_supervised_stack_axns5_10_'+str(_)+'.pth')
+        # torch.save(attn_decoder1.state_dict(), 'models/decoder_supervised_stack_axns.pth')
     # print(losses, run_accs, ind_accs, bleus)
-
+    exit()
     plt.plot(val_acc)
     plt.title("Validation accuracy per epoch")
     plt.ylabel("Accuracy")

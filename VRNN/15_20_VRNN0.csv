@@ -1,0 +1,222 @@
+VRNN
+0m 8s (- 8m 37s) (500 1%) avg loss: 2.2287 
+avg bleu: 0.3551 
+running acc: 0.0000 
+ind acc avg: 0.1490
+0m 17s (- 8m 21s) (1000 3%) avg loss: 1.9906 
+avg bleu: 0.3777 
+running acc: 0.0000 
+ind acc avg: 0.1848
+0m 27s (- 8m 41s) (1500 5%) avg loss: 1.8683 
+avg bleu: 0.3845 
+running acc: 0.0000 
+ind acc avg: 0.2002
+0m 37s (- 8m 45s) (2000 6%) avg loss: 1.9451 
+avg bleu: 0.3867 
+running acc: 0.0000 
+ind acc avg: 0.1878
+0m 47s (- 8m 44s) (2500 8%) avg loss: 1.8649 
+avg bleu: 0.3885 
+running acc: 0.0000 
+ind acc avg: 0.1918
+0m 57s (- 8m 40s) (3000 10%) avg loss: 1.8851 
+avg bleu: 0.3982 
+running acc: 0.0000 
+ind acc avg: 0.1934
+1m 7s (- 8m 34s) (3500 11%) avg loss: 1.8969 
+avg bleu: 0.3940 
+running acc: 0.0000 
+ind acc avg: 0.1924
+1m 18s (- 8m 27s) (4000 13%) avg loss: 1.8137 
+avg bleu: 0.3824 
+running acc: 0.0000 
+ind acc avg: 0.2070
+1m 28s (- 8m 19s) (4500 15%) avg loss: 1.7835 
+avg bleu: 0.3797 
+running acc: 0.0000 
+ind acc avg: 0.2000
+1m 38s (- 8m 11s) (5000 16%) avg loss: 1.7796 
+avg bleu: 0.3692 
+running acc: 0.0000 
+ind acc avg: 0.1892
+1m 48s (- 8m 2s) (5500 18%) avg loss: 1.8566 
+avg bleu: 0.3830 
+running acc: 0.0000 
+ind acc avg: 0.1954
+1m 58s (- 7m 54s) (6000 20%) avg loss: 1.9377 
+avg bleu: 0.3739 
+running acc: 0.0000 
+ind acc avg: 0.1896
+2m 8s (- 7m 45s) (6500 21%) avg loss: 2.2595 
+avg bleu: 0.3690 
+running acc: 0.0000 
+ind acc avg: 0.1592
+2m 18s (- 7m 36s) (7000 23%) avg loss: 2.1621 
+avg bleu: 0.3859 
+running acc: 0.0000 
+ind acc avg: 0.1690
+2m 29s (- 7m 27s) (7500 25%) avg loss: 2.2173 
+avg bleu: 0.3830 
+running acc: 0.0000 
+ind acc avg: 0.1614
+2m 39s (- 7m 17s) (8000 26%) avg loss: 2.1441 
+avg bleu: 0.3705 
+running acc: 0.0000 
+ind acc avg: 0.1742
+2m 49s (- 7m 8s) (8500 28%) avg loss: 2.1487 
+avg bleu: 0.3619 
+running acc: 0.0000 
+ind acc avg: 0.1604
+2m 59s (- 6m 59s) (9000 30%) avg loss: 2.1358 
+avg bleu: 0.3886 
+running acc: 0.0000 
+ind acc avg: 0.1794
+3m 9s (- 6m 49s) (9500 31%) avg loss: 2.1551 
+avg bleu: 0.3764 
+running acc: 0.0000 
+ind acc avg: 0.1690
+3m 19s (- 6m 39s) (10000 33%) avg loss: 2.1543 
+avg bleu: 0.3688 
+running acc: 0.0000 
+ind acc avg: 0.1688
+3m 30s (- 6m 30s) (10500 35%) avg loss: 2.1278 
+avg bleu: 0.3535 
+running acc: 0.0000 
+ind acc avg: 0.1696
+3m 40s (- 6m 21s) (11000 36%) avg loss: 2.1135 
+avg bleu: 0.3597 
+running acc: 0.0000 
+ind acc avg: 0.1718
+3m 52s (- 6m 13s) (11500 38%) avg loss: 2.1024 
+avg bleu: 0.3710 
+running acc: 0.0000 
+ind acc avg: 0.1700
+4m 2s (- 6m 3s) (12000 40%) avg loss: 2.1002 
+avg bleu: 0.3649 
+running acc: 0.0000 
+ind acc avg: 0.1714
+4m 12s (- 5m 53s) (12500 41%) avg loss: 2.1073 
+avg bleu: 0.3729 
+running acc: 0.0000 
+ind acc avg: 0.1706
+4m 22s (- 5m 43s) (13000 43%) avg loss: 2.1138 
+avg bleu: 0.3811 
+running acc: 0.0000 
+ind acc avg: 0.1704
+4m 33s (- 5m 33s) (13500 45%) avg loss: 2.0972 
+avg bleu: 0.3651 
+running acc: 0.0000 
+ind acc avg: 0.1670
+4m 43s (- 5m 23s) (14000 46%) avg loss: 2.0892 
+avg bleu: 0.3678 
+running acc: 0.0000 
+ind acc avg: 0.1734
+4m 53s (- 5m 13s) (14500 48%) avg loss: 2.1022 
+avg bleu: 0.3623 
+running acc: 0.0000 
+ind acc avg: 0.1626
+5m 3s (- 5m 3s) (15000 50%) avg loss: 2.0677 
+avg bleu: 0.3797 
+running acc: 0.0000 
+ind acc avg: 0.1678
+5m 15s (- 4m 55s) (15500 51%) avg loss: 2.0189 
+avg bleu: 0.3899 
+running acc: 0.0000 
+ind acc avg: 0.1666
+5m 25s (- 4m 44s) (16000 53%) avg loss: 1.9898 
+avg bleu: 0.3960 
+running acc: 0.0000 
+ind acc avg: 0.1784
+5m 36s (- 4m 35s) (16500 55%) avg loss: 1.9767 
+avg bleu: 0.3913 
+running acc: 0.0000 
+ind acc avg: 0.1800
+5m 48s (- 4m 26s) (17000 56%) avg loss: 1.9755 
+avg bleu: 0.3942 
+running acc: 0.0000 
+ind acc avg: 0.1794
+5m 58s (- 4m 16s) (17500 58%) avg loss: 1.9840 
+avg bleu: 0.3941 
+running acc: 0.0000 
+ind acc avg: 0.1842
+6m 8s (- 4m 5s) (18000 60%) avg loss: 1.9616 
+avg bleu: 0.4056 
+running acc: 0.0000 
+ind acc avg: 0.1830
+6m 19s (- 3m 55s) (18500 61%) avg loss: 1.9424 
+avg bleu: 0.3942 
+running acc: 0.0000 
+ind acc avg: 0.1860
+6m 29s (- 3m 45s) (19000 63%) avg loss: 1.9646 
+avg bleu: 0.3980 
+running acc: 0.0000 
+ind acc avg: 0.1864
+6m 39s (- 3m 34s) (19500 65%) avg loss: 2.1309 
+avg bleu: 0.3826 
+running acc: 0.0000 
+ind acc avg: 0.1808
+6m 49s (- 3m 24s) (20000 66%) avg loss: 2.0781 
+avg bleu: 0.3955 
+running acc: 0.0000 
+ind acc avg: 0.1768
+6m 59s (- 3m 14s) (20500 68%) avg loss: 2.0954 
+avg bleu: 0.3862 
+running acc: 0.0000 
+ind acc avg: 0.1758
+7m 9s (- 3m 4s) (21000 70%) avg loss: 2.0535 
+avg bleu: 0.3815 
+running acc: 0.0000 
+ind acc avg: 0.1756
+7m 19s (- 2m 53s) (21500 71%) avg loss: 2.0491 
+avg bleu: 0.3778 
+running acc: 0.0000 
+ind acc avg: 0.1692
+7m 30s (- 2m 43s) (22000 73%) avg loss: 2.0282 
+avg bleu: 0.3890 
+running acc: 0.0000 
+ind acc avg: 0.1800
+7m 40s (- 2m 33s) (22500 75%) avg loss: 1.9631 
+avg bleu: 0.3962 
+running acc: 0.0000 
+ind acc avg: 0.1858
+7m 50s (- 2m 23s) (23000 76%) avg loss: 1.9748 
+avg bleu: 0.3949 
+running acc: 0.0000 
+ind acc avg: 0.1850
+8m 0s (- 2m 12s) (23500 78%) avg loss: 1.9692 
+avg bleu: 0.3771 
+running acc: 0.0000 
+ind acc avg: 0.1862
+8m 10s (- 2m 2s) (24000 80%) avg loss: 1.9787 
+avg bleu: 0.3814 
+running acc: 0.0000 
+ind acc avg: 0.1844
+8m 21s (- 1m 52s) (24500 81%) avg loss: 1.9401 
+avg bleu: 0.3975 
+running acc: 0.0000 
+ind acc avg: 0.1926
+8m 31s (- 1m 42s) (25000 83%) avg loss: 1.9672 
+avg bleu: 0.3974 
+running acc: 0.0000 
+ind acc avg: 0.1786
+8m 41s (- 1m 31s) (25500 85%) avg loss: 1.9493 
+avg bleu: 0.3934 
+running acc: 0.0000 
+ind acc avg: 0.1914
+8m 51s (- 1m 21s) (26000 86%) avg loss: 1.9442 
+avg bleu: 0.3873 
+running acc: 0.0000 
+ind acc avg: 0.1864
+9m 1s (- 1m 11s) (26500 88%) avg loss: 2.0861 
+avg bleu: 0.3912 
+running acc: 0.0000 
+ind acc avg: 0.1740
+9m 11s (- 1m 1s) (27000 90%) avg loss: 2.0792 
+avg bleu: 0.4044 
+running acc: 0.0000 
+ind acc avg: 0.1772
+losses: [2.07919708881378]
+run_accs: [0.0]
+ind_accs: [[0.14900000000000024, 0.1848000000000001, 0.20020000000000007, 0.1878, 0.19179999999999994, 0.19340000000000016, 0.19240000000000015, 0.20699999999999985, 0.19999999999999993, 0.18919999999999987, 0.19539999999999988, 0.18959999999999996, 0.15920000000000015, 0.16899999999999987, 0.16140000000000015, 0.1742, 0.16040000000000001, 0.17940000000000023, 0.16900000000000015, 0.16880000000000003, 0.16960000000000006, 0.17179999999999995, 0.17000000000000015, 0.17140000000000016, 0.1706, 0.1704000000000001, 0.16700000000000018, 0.17340000000000003, 0.16260000000000013, 0.1678000000000001, 0.1666000000000001, 0.17839999999999992, 0.18000000000000005, 0.1794, 0.18420000000000009, 0.18300000000000022, 0.18599999999999992, 0.18639999999999995, 0.18079999999999996, 0.17680000000000015, 0.1758, 0.1756000000000001, 0.16920000000000002, 0.1800000000000001, 0.18579999999999994, 0.1849999999999999, 0.18620000000000012, 0.18439999999999998, 0.19260000000000002, 0.17860000000000006, 0.1914000000000001, 0.18639999999999987, 0.17399999999999977, 0.17720000000000008]]
+bleus: [0.4043888888888905]
+val_acc: [0.0]

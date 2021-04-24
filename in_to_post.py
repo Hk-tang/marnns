@@ -1,3 +1,4 @@
+
 # Import libraries and relevant dependencies
 import numpy as np
 import torch
@@ -39,22 +40,22 @@ TRAINING_SIZE = 5000
 TEST_SIZE = 5000
 
 # Create a Dyck language generator
-Dyck = DyckLanguage (NUM_PAR, P_VAL, Q_VAL)
-all_letters = word_set = Dyck.return_vocab ()
-n_letters = vocab_size = len (word_set)
-
-print('Loading data...')
-
-training_input, training_output, st = Dyck.training_set_generator (TRAINING_SIZE, MIN_SIZE, MAX_SIZE)
-test_input, test_output, st2 = Dyck.training_set_generator (TEST_SIZE, MAX_SIZE + 2, 2 * MAX_SIZE)
-
-for i in range (1):
-    print (training_output[i])
-    print (Dyck.lineToTensor(training_output[i]))
-    print (Dyck.lineToTensorSigmoid(training_output[i]))
+# Dyck = DyckLanguage (NUM_PAR, P_VAL, Q_VAL)
+# all_letters = word_set = Dyck.return_vocab ()
+# n_letters = vocab_size = len (word_set)
+#
+# print('Loading data...')
+#
+# training_input, training_output, st = Dyck.training_set_generator (TRAINING_SIZE, MIN_SIZE, MAX_SIZE)
+# test_input, test_output, st2 = Dyck.training_set_generator (TEST_SIZE, MAX_SIZE + 2, 2 * MAX_SIZE)
+#
+# for i in range (1):
+#     print (training_output[i])
+#     print (Dyck.lineToTensor(training_output[i]))
+#     print (Dyck.lineToTensorSigmoid(training_output[i]))
 
 # Number of samples in the training corpus
-TRAINING_SIZE = 5000
+TRAINING_SIZE = 25000
 # Number of samples in the test corpus
 TEST_SIZE = 5000
 
@@ -81,17 +82,17 @@ class Stack:
     def size(self):
         return len(self.items)
 
-    
+
 
 df = pd.read_csv("data/dataset.tsv", sep="\t",header=None)[0:TRAINING_SIZE+TEST_SIZE]
-df[0] = df[0].str.replace(" ","") 
+df[0] = df[0].str.replace(" ","")
 df[1] = df[1].str.replace(" ","")
-df = df.drop(columns=[2])
+# df = df.drop(columns=[2])
 
 def infixToPostfix(infixexpr):
     axns_ohe = []
     axns_str = []
-    
+
     prec = {}
     prec["*"] = 3
     prec["/"] = 3
@@ -131,21 +132,21 @@ def infixToPostfix(infixexpr):
             token_str += "0"
         axns_ohe.append(token_vec)
         axns_str.append(token_str)
-    
+
     while not opStack.isEmpty():
         postfixList.append(opStack.pop())
-        
+
     return "".join(axns_str), axns_ohe, "".join(postfixList)
 
 def ohe_axn(df):
     axn_list_list = []
     for item in df.index:
         axn_list_list.append(infixToPostfix(df.iloc[item, 0])[0])
-        
+
     return axn_list_list
 
-eqn_vocab = ['(', ')', '*', '+', '-', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
-axn_vocab = ["0", "1", "2"]
+axn_vocab = eqn_vocab = ['(', ')', '*', '+', '-', '/', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
+# axn_vocab = ["0", "1", "2"]
 
 def lineToTensor(line, n_letters, vocab):
     tensor = torch.zeros(len(line), 1, n_letters)
@@ -157,7 +158,10 @@ lineToTensor("0002021021021", len(axn_vocab), axn_vocab)
 
 lineToTensor("(((9*9)/9)-9)", len(eqn_vocab), eqn_vocab)
 
-df["axn_list"] = ohe_axn(df)
+lineToTensor("99*9/9-", len(eqn_vocab), eqn_vocab)
+
+# df["axn_list"] = ohe_axn(df)
+df["axn_list"] = df[1]
 
 training_input, training_output = df[:TRAINING_SIZE][0].tolist(), df[:TRAINING_SIZE]["axn_list"].tolist()
 test_input, test_output = df[TRAINING_SIZE:TRAINING_SIZE+TEST_SIZE][0].tolist(), df[TRAINING_SIZE:TRAINING_SIZE+TEST_SIZE]["axn_list"].tolist()
@@ -182,7 +186,8 @@ model = VanillaRNN(n_hidden, len(axn_vocab), len(eqn_vocab)).to(device)  # works
 # Learning rate
 learning_rate = .01
 # Minimum Squared Error (MSE) loss
-criterion = nn.MSELoss() 
+criterion = nn.MSELoss()
+# criterion = nn.CrossEntropyLoss()
 # Adam optimizer (https://arxiv.org/abs/1412.6980)
 optim = torch.optim.Adam(model.parameters(), lr = learning_rate)
 
@@ -209,13 +214,13 @@ def test_model (model, data_input, data_output, which):
             stack = torch.zeros (stack_size, stack_dim).to(device)
             # Target values
             if which == "train":
-                target = lineToTensor(training_output[i], len(axn_vocab), axn_vocab).to(device) 
+                target = lineToTensor(training_output[i], len(axn_vocab), axn_vocab).to(device)
             else:
-                target = lineToTensor(test_output[i], len(axn_vocab), axn_vocab).to(device) 
+                target = lineToTensor(test_output[i], len(axn_vocab), axn_vocab).to(device)
             # Output values
             output_vals = torch.zeros (target.shape)
-            
-            for j in range (len_input):
+
+            for j in range (len(target)):
                 if which == "train":
                     output, hidden, stack = model (lineToTensor(training_input[i][j], len(eqn_vocab), eqn_vocab).to(device), hidden, stack)
                 else:
@@ -225,12 +230,14 @@ def test_model (model, data_input, data_output, which):
             # Binarize the entries based on the output threshold
             out_np = np.int_(output_vals.detach().numpy() >= epsilon)
             target_np = np.int_(target.detach().numpy())
-            
+
             # (Double-)check whether the output values and the target values are the same
+            print(out_np.flatten())
+            exit()
             if np.all(np.equal(out_np, target_np)) and (out_np.flatten() == target_np.flatten()).all():
                 # If so, increase `correct_num` by one
                 correct_num += 1
-                
+
     return float(correct_num)/len(data_output) * 100, correct_num
 
 
@@ -242,7 +249,7 @@ def train (model, optimizer, criterion, epoch_num=2):
     correct_arr = []
     for epoch in range(1, epoch_num + 1):
         print ('Epoch: {}'.format(epoch))
-        
+
         # Total loss per epoch
         total_loss = 0
         # Total number of "correctly" predicted samples so far in the epoch
@@ -254,46 +261,65 @@ def train (model, optimizer, criterion, epoch_num=2):
             model.zero_grad ()
             # Initialize the hidden state
             hidden = model.initHidden()
-            # Initialize the stack 
+            # Initialize the stack
             stack = torch.zeros (stack_size, stack_dim).to(device)
             # Target values
-            target = lineToTensor(training_output[i], len(axn_vocab), axn_vocab).to(device) 
+            target = lineToTensor(training_output[i], len(axn_vocab), axn_vocab).to(device)
             # Output values
             output_vals = torch.zeros (target.shape)
 
-            for j in range (len_input):
+            for j in range (len(target)):
                 output, hidden, stack = model (lineToTensor(training_input[i][j], len(eqn_vocab), eqn_vocab).to(device), hidden, stack)
                 output_vals [j] = output
-            
             # MSE (y, y_bar)
             loss = criterion (output_vals, target)
             # Add the current loss to the total loss
+
+            topv, topi = output_vals.topk(1)
+            r = topi.squeeze().detach()
+            result = [eqn_vocab[i.item()] for i in r]
+            result = ''.join(result)
+            has_operator = False
+            for o in ['+', '-', '*', '/']:
+                if o in result:
+                    has_operator = True
+            if not has_operator:
+                loss += 2
+
+            anything = False
+            for r in result:
+                if r in training_output[i]:
+                    anything = True
+            if not anything:
+                loss += 2
             total_loss += loss.item()
-            # Backprop! 
+            # Backprop!
             loss.backward ()
             optimizer.step ()
-            
+
             # Print the performance of the model every 500 steps
             if i % 250 == 0:
+
                 print ('Sample Number {}: '.format(i))
                 print ('Input : {}'.format(training_input[i]))
-                print ('Output: {}'.format(training_output[i]))
+                print ('Expected Output: {}'.format(training_output[i]))
+                print ('Output: {}'.format(result))
                 print ('* Counter: {}'.format(counter))
-                print ('* Avg Loss: {}'.format(total_loss/(i+1))) 
+                print ('* Avg Loss: {}'.format(total_loss/(i+1)))
 
             # Binarize the entries based on the output threshold
             out_np = np.int_(output_vals.detach().numpy() >= epsilon)
             target_np = np.int_(target.detach().numpy())
-                
+
             # "Moving" training accuracy
             if np.all(np.equal(out_np, target_np)) and (out_np.flatten() == target_np.flatten()).all():
                 counter += 1
-                
+
             # At the end of the epoch, append our total loss and "moving" accuracy
             if i == TRAINING_SIZE - 1:
                 print ('Counter: {}'.format(float(counter)/TRAINING_SIZE))
                 loss_arr.append (total_loss)
-                correct_arr.append(counter) 
+                correct_arr.append(counter)
 
         if epoch % 1 == 0:
             print ('Training Accuracy %: ', correct_arr)
