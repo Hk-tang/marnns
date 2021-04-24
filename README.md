@@ -8,7 +8,7 @@ This work is a fork from the original repository where we add a Seq2Seq model an
 
 This repository contains all the code, instructions, and data for our term project.
 The `data` directory contains the datasets used for the experiments.
-The `results` directory contains the results of running our architecture on the different datasets, where each subdirectory contains the results for the different sequence lengths.
+For full output files, see our CMPUT 651 specific [repository](https://github.com/sarah-davis/651-project)
 
 ## Installation and execution
 
